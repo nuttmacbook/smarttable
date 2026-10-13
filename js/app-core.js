@@ -87,10 +87,15 @@ export function createApp({ api, els, env }) {
   }
   const hrefFor = (r) => (ctx.role === 'viewer' ? `#/view/${viewToken}/${r.path}` : `#/${r.path}`);
 
+  // เขียนเมนู แล้วให้ลิ้นชักมือถือซิงก์ (ไม่มีเมนู = ซ่อนปุ่ม)
+  function setNav(html) {
+    els.nav.innerHTML = html;
+    els.navDrawer?.sync?.();
+  }
   function renderNav(active) {
-    els.nav.innerHTML = allowedRoutes()
+    setNav(allowedRoutes()
       .map((r) => `<a class="nav-link${r === active ? ' is-active' : ''}" href="${esc(hrefFor(r))}"${r === active ? ' aria-current="page"' : ''}>${esc(r.title)}</a>`)
-      .join('');
+      .join(''));
   }
 
   function renderLegacyBar() {
@@ -118,13 +123,13 @@ export function createApp({ api, els, env }) {
     updateStatus();
     const wantsLogin = env.getHash().replace(/\/+$/, '') === '#/login';
     if (ctx.role === 'anon' || (ctx.role === 'public' && wantsLogin)) {
-      els.nav.innerHTML = '';
+      setNav('');
       env.title('เข้าสู่ระบบ · ระบบจัดตารางเรียนตารางสอน');
       renderLogin(els.main, { onSuccess: afterLogin });
       return;
     }
     if (ctx.role === 'public') {
-      els.nav.innerHTML = '';
+      setNav('');
       env.title('ตารางเรียนตารางสอน');
       try {
         renderPublic(els.main);
@@ -157,7 +162,7 @@ export function createApp({ api, els, env }) {
   function showInvalidLink() {
     resetSession();
     ctx.role = 'none';
-    els.nav.innerHTML = '';
+    setNav('');
     els.status.innerHTML = '';
     els.legacy.innerHTML = '';
     els.main.innerHTML = '<div class="empty-state"><h1>ลิงก์นี้ใช้ไม่ได้</h1><p>ลิงก์อาจถูกเพิกถอนหรือหมดอายุ โปรดขอลิงก์ใหม่จากผู้ดูแลระบบ</p></div>';

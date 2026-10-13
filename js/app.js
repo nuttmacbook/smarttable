@@ -1,6 +1,8 @@
 // จุดเริ่มของแอป: ต่อ DOM จริงเข้ากับ createApp (js/app-core.js)
 import { createApiClient } from './api-client.js';
 import { createApp } from './app-core.js';
+import { mountNavDrawer } from './nav-drawer.js';
+import { skeletonHtml } from './pages/util.js';
 
 // ฟอนต์ Sarabun โฮสต์เอง (ไม่ใช้ Google Fonts เพราะ CSP) — โหลดผ่าน Vite เท่านั้น; เปิดแบบ static ไม่มี import.meta.env → ใช้ฟอนต์ระบบ
 if (import.meta.env) {
@@ -20,6 +22,15 @@ const els = {
   status: document.getElementById('status'),
   legacy: document.getElementById('legacy-bar'),
 };
+
+els.navDrawer = mountNavDrawer({
+  nav: els.nav,
+  toggle: document.getElementById('nav-toggle'),
+  backdrop: document.getElementById('nav-backdrop'),
+  main: els.main,
+  status: els.status,
+});
+els.main.innerHTML = skeletonHtml(5); // รอโหลดข้อมูล/ตรวจสิทธิ์ครั้งแรก
 
 const app = createApp({
   api: createApiClient(),

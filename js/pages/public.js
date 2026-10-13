@@ -4,6 +4,7 @@
 import { ctx, esc, toast, legendHtml, gridHtml, emptyHtml } from './util.js';
 import { buildTimetableView, pickItems, printBtn } from './views.js';
 import { mountPickList } from './list-kit.js';
+import { recallLast } from './combobox.js';
 
 const KIND_LABEL = { group: 'กลุ่มเรียน', teacher: 'ครู', classroom: 'ห้องเรียน' };
 const EXPORT_KIND = { group: 'group', teacher: 'teacher', classroom: 'classroom' };
@@ -49,12 +50,12 @@ export function renderPublic(root) {
       <div class="public-footer"><a class="link-muted" href="#/login">เข้าสู่ระบบแอดมิน</a></div></div>`;
     return;
   }
-  if (!items.some((i) => i.id === p.id)) p.id = items[0].id;
+  if (!items.some((i) => i.id === p.id)) p.id = recallLast(`public-${p.kind}`, items) || items[0].id;
   const view = buildTimetableView(state, p.kind, p.id);
 
   root.innerHTML = `<div class="public-page">
     <div class="public-intro"><h1>ตารางเรียนตารางสอน</h1><p class="text-muted">เลือกกลุ่มเรียน${kinds.includes('teacher') ? ' ครู' : ''} หรือห้องเรียน เพื่อดูตาราง (ดูอย่างเดียว ไม่ต้องเข้าสู่ระบบ)</p></div>
-    <div class="public-bar card">
+    <div class="public-bar card no-print">
       <fieldset class="chip-group" aria-label="ประเภท">
         ${kinds.map((k) => `<label class="chip"><input type="radio" name="pub-kind" value="${esc(k)}"${k === p.kind ? ' checked' : ''}><span>${esc(KIND_LABEL[k])}</span></label>`).join('')}
       </fieldset>

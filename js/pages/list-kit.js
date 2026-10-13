@@ -5,6 +5,7 @@
 // - ทุกค่าที่ใส่ HTML ผ่าน esc() · ไม่มี inline handler (ใช้ event delegation ที่ container)
 import { queryList, PAGE_SIZES, DEFAULT_PAGE_SIZE } from '../list-model.js';
 import { ctx, esc } from './util.js';
+import { mountCombobox } from './combobox.js';
 
 export const LIST_PREFIX = 'tt.ui.list.';
 export const MAX_QUERY_LENGTH = 200;
@@ -13,7 +14,7 @@ const NAME_RE = /^[a-z0-9-]{1,40}$/;
 const FILTER_VALUE_MAX = 64;
 
 // ---------- สถานะ (pure) ----------
-export const emptyListState = () => ({ query: '', filters: new Map(), pageSize: DEFAULT_PAGE_SIZE, page: 1 });
+export const emptyListState = () => ({ query: '', filters: new Map(), pageSize: DEFAULT_PAGE_SIZE, page: 1, last: '' });
 
 export function cleanQuery(q) {
   const s = typeof q === 'string' ? q.slice(0, MAX_QUERY_LENGTH) : '';
@@ -26,6 +27,8 @@ export function sanitizeListState(raw, filterIds = []) {
   if (raw === null || typeof raw !== 'object' || Array.isArray(raw)) return st;
   if (typeof raw.query === 'string') st.query = cleanQuery(raw.query);
   if (PAGE_SIZES.includes(raw.pageSize)) st.pageSize = raw.pageSize;
+  // การเลือกล่าสุดของ combobox: เก็บเฉพาะ id (ข้อความสั้น) ไม่เก็บชื่อ
+  if (typeof raw.last === 'string' && raw.last.length <= FILTER_VALUE_MAX) st.last = raw.last;
   const f = raw.filters;
   if (f !== null && typeof f === 'object' && !Array.isArray(f)) {
     for (const id of filterIds) {
@@ -55,7 +58,7 @@ export function loadListState(name, filterIds) {
 export function saveListState(name, st) {
   if (!NAME_RE.test(name)) return;
   try {
-    storageFor()?.setItem(LIST_PREFIX + name, JSON.stringify({ query: st.query, pageSize: st.pageSize, filters: Object.fromEntries(st.filters) }));
+    storageFor()?.setItem(LIST_PREFIX + name, JSON.stringify({ query: st.query, pageSize: st.pageSize, filters: Object.fromEntries(st.filters), last: st.last || '' }));
   } catch {
     // เต็ม/ปิดไว้ ก็ใช้โดยไม่จำค่า
   }
@@ -130,18 +133,9 @@ export function pagerHtml(view) {
 
 // รายการเลือกหนึ่งรายการ (กลุ่ม/ครู/ห้อง/วิชา…): items=[{id,label,detail}] · onPick(id) · selectedId ถูกไฮไลต์ (aria-pressed)
 // ฟิลด์ค้นหาเป็นค่าคงที่ระดับโมดูล (ใช้ดัชนี cache ได้) ; ค่าจากข้อมูลผ่าน esc() ทุกจุด
-const PICK_FIELDS = (x) => [x.label, x.detail];
-const PICK_SORT = { key: (x) => x.label };
+// ใช้ combobox (ย่อ ลอยทับ ค้นได้ คีย์บอร์ด) แทนรายการที่เปิดเต็มหน้า ; onPick เรียกเมื่อเลือกรายการใหม่เท่านั้น
 export function mountPickList(container, { name, items, selectedId, onPick, placeholder = 'ค้นหา', emptyText = 'ไม่พบรายการ' }) {
-  return mountListKit(container, {
-    name,
-    def: { fields: PICK_FIELDS, filters: [], sort: PICK_SORT, placeholder },
-    getItems: () => items,
-    emptyText,
-    renderBody: (page) => `<ul class="pick-list">${page.map((it) => `<li><button type="button" class="pick-item" data-pick="${esc(it.id)}" aria-pressed="${it.id === selectedId}">
-      <span class="pick-item-title">${esc(it.label)}</span>${it.detail ? `<span class="pick-item-sub">${esc(it.detail)}</span>` : ''}</button></li>`).join('')}</ul>`,
-    onRender: (el) => el.querySelectorAll('[data-pick]').forEach((b) => b.addEventListener('click', () => onPick(b.dataset.pick))),
-  });
+  return mountCombobox(container, { name, items, value: selectedId, placeholder, ariaLabel: placeholder, emptyText, onChange: onPick });
 }
 
 // ----- ตัวเลือก (select) ที่อาจยาว: ≤ 25 ตัวเลือกใช้ <select> ธรรมดา · มากกว่านั้นใช้รายการค้นหา/แบ่งหน้า (list-kit) -----
@@ -151,10 +145,9 @@ export const SELECT_PLAIN_MAX = 25;
 const SS_FIELDS = (x) => [x.label, x.detail];
 export function searchSelect({ id, items, value = '', blank = null, label = '', onChange, placeholder = 'ค้นหา' }) {
   const big = items.length > SELECT_PLAIN_MAX;
-  const cur = (v) => items.find((x) => x.id === v)?.label ?? (blank ?? '');
   const optionHtml = (it) => `<option value="${esc(it.id)}"${it.id === value ? ' selected' : ''}${it.disabled ? ' disabled' : ''}>${esc(it.label)}${it.note ? ` — ${esc(it.note)}` : ''}</option>`;
   const html = big
-    ? `<div class="field-search" data-ss="${esc(id)}"><input type="hidden" id="${esc(id)}" value="${esc(value)}"><div class="field-hint" data-ss-current>เลือกอยู่: ${esc(cur(value) || '—')}</div><div data-ss-list></div></div>`
+    ? `<div class="field-search" data-ss="${esc(id)}"><input type="hidden" id="${esc(id)}" value="${esc(value)}"><div data-ss-list></div></div>`
     : `<select class="select" id="${esc(id)}">${blank !== null ? `<option value=""${value ? '' : ' selected'}>${esc(blank)}</option>` : ''}${items.map(optionHtml).join('')}</select>`;
   function mount(root) {
     if (!big) {
@@ -163,27 +156,22 @@ export function searchSelect({ id, items, value = '', blank = null, label = '', 
     }
     const box = root.querySelector(`[data-ss="${id}"]`);
     const input = box?.querySelector('input[type=hidden]') ?? root.querySelector(`#${id}`);
-    const list = [...(blank !== null ? [{ id: '', label: blank }] : []), ...items];
-    const curEl = box?.querySelector('[data-ss-current]');
-    let kit;
-    const pick = (v) => {
-      input.value = v;
-      if (curEl) curEl.textContent = `เลือกอยู่: ${cur(v) || '—'}`;
-      onChange?.(v);
-      kit?.refresh();
-    };
-    kit = mountListKit(box.querySelector('[data-ss-list]'), {
+    // ป้าย <label for=id> ชี้ไปช่อง hidden ซึ่งโฟกัสไม่ได้ → ชี้ไปที่ช่องค้นหาของ combobox แทน (คลิกป้ายโฟกัสช่อง)
+    const comboId = `${id}-combo`;
+    root.querySelector(`label[for="${id}"]`)?.setAttribute('for', comboId);
+    mountCombobox(box.querySelector('[data-ss-list]'), {
+      inputId: comboId,
       name: 'select-' + String(label || id).replace(/[^a-z0-9-]/gi, '').toLowerCase().slice(0, 30),
-      persist: false,
-      def: { fields: SS_FIELDS, filters: [], sort: undefined, placeholder },
-      getItems: () => list,
-      emptyText: 'ไม่พบรายการ',
-      renderBody: (page) => `<ul class="pick-list">${page.map((it) => `<li><button type="button" class="pick-item${it.disabled ? ' is-disabled' : ''}" data-ss-pick="${esc(it.id)}"${it.disabled ? ' aria-disabled="true"' : ''} aria-pressed="${it.id === input.value}">
-        <span class="pick-item-title">${esc(it.label)}</span>${it.detail ? `<span class="pick-item-sub">${esc(it.detail)}</span>` : ''}${it.note ? `<span class="pick-item-reason">${esc(it.note)}</span>` : ''}</button></li>`).join('')}</ul>`,
-      onRender: (el) => el.querySelectorAll('[data-ss-pick]').forEach((b) => b.addEventListener('click', () => {
-        const it = list.find((x) => x.id === b.dataset.ssPick);
-        if (it && !it.disabled) pick(it.id);
-      })),
+      remember: false,
+      items,
+      value,
+      blank,
+      placeholder,
+      ariaLabel: placeholder,
+      onChange: (v) => {
+        input.value = v;
+        onChange?.(v);
+      },
     });
   }
   return { html, mount, big };

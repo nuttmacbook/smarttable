@@ -3,6 +3,7 @@ import { DAYS, PERIODS, LUNCH, STATE_VERSION } from '../constants.js';
 import * as sched from '../scheduler.js';
 import { emptyState, legacyViolations } from '../store.js';
 import { fsLevel, plainFromHtml, titleTextOf } from '../cell-size.js';
+import { icon } from '../icons.js';
 
 // ctx = สถานะรวมของแอป (หน้าทั้งหมดอ่านจากที่นี่ ไม่แก้ state ตรง ๆ — ทุกการแก้ผ่าน doOp)
 //   ข้อมูลอยู่บนเซิร์ฟเวอร์ (api/) ทุก op บันทึกทันที ไม่มีฉบับร่าง
@@ -83,7 +84,8 @@ export function openModal({ title, bodyHtml, footerHtml = '', large = false }) {
     if (e.target === backdrop) close();
   });
   root.querySelectorAll('[data-close]').forEach((b) => b.addEventListener('click', close));
-  const first = root.querySelector('input, select, textarea, .pick-item:not(.is-disabled), .btn-primary');
+  // ไม่โฟกัส combobox อัตโนมัติ (จะเปิดรายการค้างทันทีที่โมดัลเปิด)
+  const first = root.querySelector('input:not([data-cb-input]):not([type=hidden]), select, textarea, .pick-item:not(.is-disabled), .btn-primary');
   if (first) first.focus();
   return { el: root, close };
 }
@@ -234,11 +236,16 @@ export function pageHeader(title, actionsHtml = '') {
   return `<div class="page-header"><h1>${esc(title)}</h1><div class="row">${actionsHtml}</div></div>`;
 }
 
+// ลิงก์รับเฉพาะ hash ภายในแอป ('#/…' ตัวอักษร a-z 0-9 _ - / เท่านั้น) — อย่างอื่น (javascript:, http:, ช่องว่าง) ไม่แสดงลิงก์
+const SAFE_HASH = /^#\/[A-Za-z0-9_\-/]*$/;
 export function emptyHtml(message, linkHref = '', linkText = '') {
-  return `<div class="empty-state"><p>${esc(message)}</p>${
-    linkHref ? `<a class="btn btn-primary" href="${esc(linkHref)}" style="text-decoration:none;display:inline-block">${esc(linkText)}</a>` : ''
+  return `<div class="empty-state">${icon('inbox', 'icon-lg')}<div class="empty-state-title">${esc(message)}</div>${
+    linkHref && SAFE_HASH.test(String(linkHref)) ? `<a class="btn btn-primary" href="${esc(linkHref)}" style="text-decoration:none;display:inline-block">${esc(linkText)}</a>` : ''
   }</div>`;
 }
+
+// โครงรอโหลด (skeleton) สั้น ๆ : rows = จำนวนแถว ; ไม่มีข้อความจากข้อมูล ; role=status ให้โปรแกรมอ่านจอรู้ว่ากำลังโหลด
+export const skeletonHtml = (rows = 4) => `<div class="skeleton" role="status" aria-label="กำลังโหลด" aria-busy="true">${Array.from({ length: Math.max(1, Math.min(10, rows)) }, (_, i) => `<div class="skeleton-row"><span class="skeleton-line ${['w-80', 'w-60', 'w-40'][i % 3]}"></span></div>`).join('')}</div>`;
 
 // แสดงข้อผิดพลาดใต้ช่อง (.field-error) + ขีดแดงช่อง และรวมใน .alert ด้านบนฟอร์ม
 // errs = [{ input: '#f-code', msg }] ; allInputs = ช่องทั้งหมดที่ตรวจ (ไว้ล้างสถานะเดิม)

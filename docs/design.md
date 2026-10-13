@@ -5,7 +5,7 @@
 ## 1. หลักการ
 - อ่านง่าย ตัวอักษรไม่เล็กกว่า 13px (ข้อความในช่องตาราง .85rem) พื้นหลังอ่อน ขอบชัด
 - สถานะห้ามพึ่งสีอย่างเดียว: ชน = ขอบหนา 2px + ข้อความ "ชน", พักเที่ยง = ลายเฉียง + คำว่า "พักเที่ยง", เรียนรวม = badge "เรียนรวม"
-- ปุ่มและช่องกรอกสูง ≥40px, focus เป็นขอบส้ม 3px
+- ปุ่มและช่องกรอกสูง ≥40px, focus เป็นวงน้ำเงิน 2px (ช่องตารางใช้เส้นดำ 3px)
 - ภาษาไทยทั้งหมด
 
 ## 2. ฟอนต์
@@ -291,7 +291,7 @@
 ```
 - **แยกจากสถานะเดิมโดยไม่พึ่งสี:** `is-conflict` = ขอบทึบ 2px + ป้ายข้อความ (ข้อมูลที่ลงแล้วและชน) · `is-level-mismatch` = ขอบเส้นประ · **`tt-blocked` = ขอบจุด 2px + ลายตาข่ายทแยงสองทิศ + วงกลมขีดฆ่า (⊘ วาดด้วย CSS ไม่พึ่งกลิฟ) + ตัวหนา** · ชนิดวิชาใช้ลายทแยงทางเดียว (ชีพ 135°) พื้นเทา ส/ช/ร ไม่ซ้ำกัน
 - สี: พื้น `#fee2e2` ตัว `#7f1d1d` ขอบ `#dc2626`; ข้อความเหตุผลอยู่บนแถบขาวกึ่งทึบ (`.tt-blocked-why`) จึงอ่านผ่าน AA ทับลาย (ตัว `#7f1d1d` บนขาว ≈ 10:1) · เหตุผลตัดที่ 2 บรรทัด `…` · ใช้ร่วมกับ `tt-fit-1..4` ได้ (สัญลักษณ์และตัวอักษรย่อตาม em)
-- hover คงโทนแดง (ไม่เปลี่ยนเป็นฟ้าแบบช่องว่างปกติ) cursor `help` เพราะคลิกแล้วแสดงเหตุผลเต็ม · focus ใช้ขอบส้มเดิม · `is-selected` ซ้อนได้ (กรอบน้ำเงิน+✓) ในโหมดเลือกหลายช่อง
+- hover คงโทนแดง (ไม่เปลี่ยนเป็นฟ้าแบบช่องว่างปกติ) cursor `help` เพราะคลิกแล้วแสดงเหตุผลเต็ม · focus ช่องตารางใช้เส้นดำ 3px · `is-selected` ซ้อนได้ (กรอบน้ำเงิน+✓) ในโหมดเลือกหลายช่อง
 - พิมพ์/ขาวดำ: พื้นขาว + ตาข่ายทแยงดำ + ขอบจุดดำ + ตัวดำ (ต่างจากชีพ/พักเที่ยงที่เป็นเทา+ลายทางเดียว) · legend: `.legend-swatch.tt-blocked` "ลงไม่ได้ (ไฮไลต์แดง)"
 - **ชื่อคลาสที่ฟ้าใช้จริง (รองรับคู่กับชื่อข้างบน ใช้ชุดใดชุดหนึ่งได้):** `td.tt-cell.is-free.is-blocked` > `.tt-cell-blocked` (`.tt-block-icon` ⊘ + `.tt-block-text`) + `.tt-cell-sub.tt-block-reason` · `title="ลงไม่ได้: เหตุผล"` · legend `.legend-swatch.is-blocked` · ช่องที่มีวิชาแล้วไม่ใส่ · ⊘ เป็นกลิฟตัวอักษร (ฟอนต์ระบบส่วนใหญ่มี) ใส่ `aria-hidden` และมี `.tt-block-text` "ลงไม่ได้" กำกับเสมอ จึงยังสื่อได้ถ้ากลิฟไม่แสดง
 - ข้อเสนอเหตุผลสั้น (ฟ้าแมปจาก type): ชนครู · ชนห้อง · ชนกลุ่ม · ชั่วโมงเต็ม · ระดับไม่ตรง · พักเที่ยง
@@ -316,3 +316,60 @@
 
 ### 10.10 class ใหม่ทั้งหมด (T43)
 `.tt-mark` (`-general` `-vocational` `-shared`) `.type-general` `.type-vocational` `.tt-lunch-text` `.tt-fs-1..4` `.tt-fulltext` `.legend-swatch.type-general|type-vocational` · `.multi-bar` (`.is-on` `.is-remove`) `.multi-count` `.multi-actions` `.multi-mode-label` `.tt-wrap.is-multi|is-selecting|is-remove` `.tt-cell.is-selected|is-range-preview|is-anchor|is-skipped` · `.result-summary` `.result-table` `.result-ok` `.result-fail` `.result-reason` `tr.row-ok|row-fail` · `.switch` `.switch-track` `.switch-label` · `.list-kit-bar` `.search-box` `.search-clear` `.list-filters` `.list-count` `.pager` `.pager-info` `.pager-btns` `.page-size` `.list-empty` · `.public-page` `.public-intro` `.public-bar` `.public-title` `.public-footer` `.public-disabled` `.link-muted` · `.settings-list` `.setting-row` (`.is-on`) `.setting-text` `.setting-title` `.setting-desc` `.setting-meta` `.pdpa-note`
+
+## 11. Design tokens v2 (T75/T76) — สไตล์ dashboard
+**ข้อตกลง:** ตัวแปร CSS ชื่อเดิมคงไว้ (ค่าเปลี่ยน) + เพิ่มชื่อใหม่ · ชุดสีสถานะช่อง `--st-*` (แดงช่องลงไม่ได้, ลายขาวดำ, ส/ช/ร) และหน้าพิมพ์ A4/PDF **ไม่เปลี่ยน**
+
+### 11.1 สี (ค่าคอนทราสต์คำนวณด้วยสคริปต์ WCAG 2.x จากค่า hex — ไม่ได้วัดบนจอจริง)
+| โทเคน | ค่า | ใช้กับ | คู่ที่ตรวจ |
+|---|---|---|---|
+| `--c-bg` | `#f6f7f9` | พื้นหน้า | ตัวหลักบน bg 16.6:1 |
+| `--c-surface` | `#ffffff` | การ์ด ตาราง modal | ตัวหลัก `#101828` 17.8:1 |
+| `--c-surface-2` | `#f2f4f7` | หัวตาราง พื้นรอง hover | ตัวจางบนหัวตาราง 5.3:1 |
+| `--c-border` / `--c-border-btn` | `#e4e7ec` / `#d0d5dd` | เส้นแบ่ง (ตกแต่ง) / ขอบปุ่มรอง | — |
+| `--c-border-strong` | `#7b8494` | ขอบช่องกรอก/ตัวควบคุม | บนขาว 3.77:1, บน bg 3.52:1 (เกณฑ์ UI ≥ 3) |
+| `--c-text` / `--c-text-2` / `--c-muted` / `--c-faint` | `#101828` / `#344054` / `#475467` / `#5b6676` | ตัวหลัก / เมนู / รอง / hint | บนขาว 17.8 / 10.5 / 7.7 / 5.8 |
+| `--c-primary` (สีเน้นสีเดียว) | `#2563eb` | ปุ่มหลัก ลิงก์ โฟกัส | ขาวบน primary 5.17:1, ลิงก์บนขาว 5.17:1 |
+| `--c-primary-hover` / `--c-primary-soft` / `--c-primary-ink` | `#1d4ed8` / `#eff4ff` / `#1e40af` | hover / พื้นอ่อน / ตัวบนพื้นอ่อน | ขาวบน hover 6.7:1, ink บน soft 7.9:1 |
+| `--c-danger` | `#b42318` | ปุ่มลบ ข้อผิดพลาด | ขาวบน danger 6.6:1 |
+| สถานะข้อความ `--s-error/warn/ok/info-{bg,fg}` | `#fef3f2/#b42318` · `#fffaeb/#93370d` · `#ecfdf3/#067647` · `#eff8ff/#175cd3` | alert, ป้ายทั่วไป | 6.1 / 7.2 / 5.4 / 5.6 : 1 |
+| ปิดใช้งาน `--st-disabled-*` | `#f2f4f7` พื้น `#667085` ตัว | ปุ่ม/ช่อง disabled | 4.51:1 |
+| toast | `#101828` พื้น ตัวขาว | แจ้งเตือนลอย | 17.8:1 |
+- skeleton (`#e4e7ec` บนขาว 1.24:1) เป็นของตกแต่งชั่วคราว ไม่ใช่ข้อมูล จึงไม่อยู่ในเกณฑ์คอนทราสต์
+
+### 11.2 ตัวอักษร / ระยะ / มุม / เงา
+- ฟอนต์ Sarabun (ฝังอยู่) · `html` 16px คงเดิม (หน่วย rem ของตารางคาบ/พิมพ์ไม่เปลี่ยน) · **เนื้อหา `--fs-base` 14px** · ตาราง/ปุ่ม/เมนู `--fs-md` 13.5px · หัวตาราง/ป้าย/hint `--fs-sm` 12.5px · h1 20px (มือถือ ≤480: 18px) · h2 17px · h3 15px · line-height 1.6 (หัวข้อ 1.35) · น้ำหนัก 400 / 600 / 700
+- ระยะสเกล 4/8: `--sp-1..6` = 4 / 8 / 12 / 16 / 24 / 32px
+- มุม `--radius-sm` 6px · `--radius` 8px · `--radius-lg` 12px (modal) · เงา `--shadow` (การ์ด/ปุ่ม) `--shadow-md` `--shadow-lg` (modal/ลอย)
+- ความสูงตัวควบคุม: `--control-h` **36px** เดสก์ท็อป / **44px** เมื่อ `≤768px` หรือ `pointer: coarse` · `--control-h-sm` 30px / 40px · อินพุตบน ≤768px ใช้ฟอนต์ 16px กัน iOS ซูม
+- z-index: ตาราง sticky 10 · combobox 40 · ฉากหลังหน้า(แผงวิชา) 110/120 · modal 100 · ลิ้นชักเมนู 130 · toast 200
+- ไอคอน: `--icon` 16px; `.icon` ขนาด 1.15em ตามตัวอักษร (`currentColor`, เส้น 1.75)
+
+### 11.3 Breakpoint
+`≥1024` เดสก์ท็อป (แผงวิชาข้างตารางที่ ≥1100) · `≤1023` padding ลด · `≤768` แท็บเล็ต/มือถือ: ตัวควบคุม 44px, ฟอร์ม 1 คอลัมน์, เมนูเป็นลิ้นชัก (ถ้ามี `.nav-toggle`) หรือแถบเลื่อนแนวนอน · `≤480` มือถือ: modal และ combobox เป็น bottom sheet, toast เต็มความกว้าง
+ไม่มีของล้นแนวนอนของหน้า — ตาราง (`.tt-wrap`, `.table-wrap`) เลื่อนในกรอบ หัวตารางติดบน (sticky) และหัวแถว "วัน" ติดซ้าย; ตารางข้อมูลใส่ `.col-sticky` ที่คอลัมน์แรกถ้าต้องการติดซ้าย
+
+### 11.4 คอมโพเนนต์ใหม่/ปรับ (ชื่อ class)
+- **ปุ่ม:** `.btn` (รอง) · `.btn-primary` · `.btn-ghost` · `.btn-danger` · `.btn-sm` · `.btn-icon` · hover/active/`:focus-visible`/disabled (`disabled`, `.is-disabled`, `aria-disabled`)
+- **โฟกัส:** วงแหวน 2px `--c-focus` (น้ำเงิน) offset 2px ทั่วไป · ช่องตาราง `.tt-cell` ใช้เส้นดำ 3px ด้านใน (ต่างจากกรอบน้ำเงินของ `.is-selected`) — **เปลี่ยนจากสีส้มเดิม** (ส้มบนขาวได้ ~2.1:1 ไม่ถึง 3:1)
+- **ไอคอน:** `<svg class="icon icon-ชื่อ" aria-hidden="true" viewBox="0 0 24 24">` เส้นแบบ Lucide 24×24 (CSS ใส่ `fill:none; stroke:currentColor`) · ถ้าเป็นไอคอนทึบเพิ่ม `.icon-fill` · ขนาดใหญ่ `.icon-lg`
+- **เมนูมือถือ:** `button.nav-toggle[aria-expanded][aria-controls]` (แสดงเฉพาะ ≤768) + `nav#nav.nav(.is-open)` + `div.nav-backdrop(.is-open)` — ลิ้นชักซ้าย กว้าง min(280px, 86vw); ปิดอยู่ใช้ `visibility:hidden` (โฟกัสด้วย Tab ไม่เข้า); **ใช้ลิ้นชักเฉพาะเมื่อมี `.nav-toggle` ในหน้า** ไม่มีแล้วเมนูเป็นแถบเลื่อนแนวนอน
+- **Combobox (ชื่อตามฟ้า):** `div.combo[data-open=true|false]` > `input.combo-input` + `button.combo-toggle` (ไอคอนลูกศร หมุนเมื่อเปิด) + `button.combo-clear` + `div.combo-pop[role=listbox]` (ลอยทับ `position:absolute` ไม่ดันตาราง สูงสุด min(340px, 60vh) เลื่อนได้) > `.combo-meta` (แถบสรุป/เลื่อนหน้า sticky) + `ul > li.combo-option` (`.is-active` ลูกศรคีย์บอร์ด = พื้นฟ้า+กรอบ, `[aria-selected=true]` = ตัวหนา + ✓ ท้ายแถว, `.is-disabled`) + `.combo-detail` + `.combo-empty`
+  - มือถือ ≤480: `.combo-pop` เป็น bottom sheet (fixed ล่างจอ สูงสุด 70vh) · เดสก์ท็อป ≥1024 ตัวเลือกสูง 32px แน่นขึ้น · ข้อจำกัด: ภายใน `.modal-body` (เลื่อนได้) รายการลอยจะถูกตัดตามกรอบเลื่อน ถ้าไม่พอใจให้ฟ้าเปลี่ยนเป็น `position:fixed` คำนวณตำแหน่งด้วย JS
+  - **DOM สุดท้ายที่ใช้จริง (T77):** `.combo[data-open]` > `.combo-field` (`input.combo-input` + `button.combo-clear[hidden เมื่อไม่มีคำค้น]` + `button.combo-toggle[aria-expanded]`) + `.combo-pop[hidden]` > `.combo-meta` + `ul.combo-list` > `li.combo-option` (`span.combo-label` + `span.combo-detail` + `span.combo-note`) + `.combo-empty` · ซ่อนด้วย attribute `hidden` หรือ `data-open="false"` · ✓ ของตัวเลือกที่เลือกอยู่ด้านซ้าย · chevron หมุนเมื่อ `[aria-expanded=true]`
+  - **ใน modal:** ฟ้าใส่ `.combo-pop.is-fixed` + ตำแหน่ง inline (left/top|bottom/width/maxHeight) ด้วย JS (พลิกขึ้นบนถ้าล่างไม่พอ) · CSS ของ `.is-fixed` ตั้งแค่ `position: fixed` และรีเซ็ต top/left/right/bottom/width เป็น auto เพื่อไม่ทับค่า inline + `z-index` = modal + 5 · ≤480px ไม่ใช้ `.is-fixed` แต่เป็น bottom sheet
+  - **พิมพ์:** ซ่อน `.combo .combo-field .combo-pop .combo-toggle .combo-clear .field-search`, การ์ดที่มี `#pick-root` (`.card:has(#pick-root)`), `.badge-readonly`, `.badge-hidden-teachers`, `.public-intro p`, `.viewer-banner` — ชื่อรายการที่เลือกพิมพ์ผ่านหัวหน้า (`h1`/`.public-title`) ซึ่งยังอยู่ · ข้อจำกัด: `:has()` ในเบราว์เซอร์เก่าไม่ทำงาน การ์ดว่างยังเหลือแต่ไม่มีกรอบ
+  - **เมนู:** `button.btn.nav-toggle#nav-toggle` (svg.icon + `span.nav-toggle-text`) แสดงเฉพาะ ≤768px · `body.nav-open` ล็อกสกรอลล์ · `.nav-backdrop` ใส่ `.is-open` คู่กับเอา `hidden` ออก
+- **Skeleton:** `.skeleton[role=status] > .skeleton-row > .skeleton-line` (แถบเรืองแสงอยู่ที่ `.skeleton-line`; `.w-40` `.w-60` `.w-80`) หรือ `.skeleton` เดี่ยว ๆ เป็นแถบเรืองแสงเอง · ไม่เคลื่อนไหวเมื่อ `prefers-reduced-motion` · empty state ใช้ `span.empty-icon > svg.icon` ได้ · เดิม: `.skeleton` + `.skeleton-line` (`.w-40` `.w-60` `.w-80`) / `.skeleton-row` · ปิดแอนิเมชันเมื่อ `prefers-reduced-motion` · ซ่อนตอนพิมพ์
+- **Empty state:** `.empty-state` (เส้นประบาง) + `svg.icon.icon-lg` + `.empty-state-title`
+- **ตาราง:** หัวตาราง `--c-surface-2` ตัวรอง 12.5px หนา · เซลล์ 13.5px padding 7×12 · hover แถว `#f9fafb` · `.table-wrap` สูงสุด min(72vh, 680px) เลื่อนในกรอบ
+- **Header/เมนู:** header พื้นขาว + เส้นล่าง (เดิมเป็นแถบน้ำเงินเข้ม) · เมนูแท็บ 13.5px active = ตัวน้ำเงิน + ขีดล่าง 2px + พื้นฟ้าอ่อน
+
+### 11.4.1 ข้อกำหนดด้านความปลอดภัยของ CSS (จากออม)
+- CSP: `style-src 'self' 'unsafe-inline'`, `img-src 'self' data: blob:`, `font-src 'self'` → CSS ไม่มี `@import`/`url()` ไปโดเมนอื่น ฟอนต์ชี้ `/fonts/` ของเว็บเอง ไอคอนเป็น SVG ฝังในโค้ดเท่านั้น
+- ห้ามใช้ `content: attr(data-…)` กับข้อมูลผู้ใช้ (กันชื่อครูที่ซ่อนโผล่ผ่าน data-attribute) — ข้อความใน `content:` ต้องเป็นข้อความคงที่ในไฟล์เท่านั้น (ตรวจแล้ว style.css ไม่มี `attr(`)
+- ห้ามพิมพ์ URL/ลิงก์แชร์/โทเค็นด้วย `a[href]::after` ตอนพิมพ์ (ตรวจแล้วไม่มี)
+- ปุ่มลบ `.btn-danger` แยกจากปุ่มหลักด้วยข้อความ "ลบ…" + modal ยืนยัน ไม่ใช้สีเดียว; สถานะทุกชนิดมีข้อความ/ไอคอน/ลายกำกับ
+
+### 11.5 สิ่งที่ไม่เปลี่ยน
+`--st-*`, `.tt-*` (ขนาดตัวอักษรช่อง `tt-fit/tt-fs` ใช้ rem เดิม), `.tt-blocked/.is-blocked`, ส/ช/ร, ลายขาวดำ, `@media print` / `@page` A4 แนวนอน 8mm (เพิ่มเพียงการยกเลิก max-height/sticky และซ่อน `.nav-toggle .combo-pop .skeleton`)

@@ -1,6 +1,6 @@
 // หน้าตั้งค่า (แอดมิน, โหมด remote) — เปิด/ปิดโหมดสาธารณะ + แสดง/ซ่อนชื่อครู (PDPA) · SPEC v5 ข้อ 16.1 และ 22 V5-01
 // hideTeacherNames: null = ยังไม่ยืนยัน = ถือว่าซ่อน (effectiveHide = hideTeacherNames !== false) — ผู้ชมเห็นชื่อครูได้ก็ต่อเมื่อแอดมินตั้ง false เอง
-import { ctx, esc, toast, pageHeader, errorListHtml } from './util.js';
+import { ctx, esc, toast, pageHeader, errorListHtml, skeletonHtml } from './util.js';
 
 export const effectiveHide = (settings) => settings?.publicMode?.hideTeacherNames !== false;
 // ยังไม่ได้ยืนยัน: confirmedAt เป็น null (ถ้าเซิร์ฟเวอร์ไม่ส่ง confirmedAt ใช้ hideTeacherNames === null แทน)
@@ -19,7 +19,7 @@ const row = (id, on, title, desc, extra = '') => `<div class="setting-row${on ? 
   <label class="switch"><input type="checkbox" role="switch" id="${id}"${on ? ' checked' : ''}><span class="switch-track"></span><span class="switch-label">${on ? 'เปิด' : 'ปิด'}</span></label></div>`;
 
 export async function renderSettings(root) {
-  root.innerHTML = `${pageHeader('ตั้งค่า')}<div id="settings-box"><p class="text-muted">กำลังโหลด…</p></div>`;
+  root.innerHTML = `${pageHeader('ตั้งค่า')}<div id="settings-box">${skeletonHtml(3)}</div>`;
   const box = root.querySelector('#settings-box');
   let settings;
   try {

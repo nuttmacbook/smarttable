@@ -2,7 +2,7 @@
 // โทเค็นเต็มแสดงครั้งเดียวตอนสร้าง/สร้างใหม่ ไม่เก็บลง localStorage/state (W-04) · รูป response ตาม docs/API.md (id ของลิงก์แยกจากโทเค็น)
 import { shareUrl } from '../api-client.js';
 import { mountTableList, searchSelect } from './list-kit.js';
-import { ctx, esc, byId, toast, openModal, field, optionsHtml, pageHeader, emptyHtml, errorListHtml, editOnly } from './util.js';
+import { ctx, esc, byId, toast, openModal, field, optionsHtml, pageHeader, emptyHtml, errorListHtml, editOnly, skeletonHtml } from './util.js';
 
 const DAY_MS = 86400000;
 const DEFAULT_ALL_DAYS = 90; // ลิงก์ scope all หมดอายุโดยค่าเริ่มต้น 90 วัน (SPEC ข้อ 14 W-18/19)
@@ -27,7 +27,7 @@ const normList = (res) => (Array.isArray(res) ? res : res?.shares ?? []);
 export async function renderShares(root) {
   root.innerHTML = `${pageHeader('ลิงก์แชร์ (ดูอย่างเดียว)', editOnly('<button type="button" class="btn btn-primary" id="btn-add">+ สร้างลิงก์ใหม่</button>'))}
     <div class="alert alert-warning">ตารางทุกมุมมองมีชื่อครู (ข้อมูลส่วนบุคคล) — ส่งลิงก์เฉพาะผู้ที่ควรเห็น ลิงก์ขอบเขต "ทั้งหมด" หมดอายุใน ${DEFAULT_ALL_DAYS} วันโดยค่าเริ่มต้น และเพิกถอนได้ทันที</div>
-    <div id="share-list"><p class="text-muted">กำลังโหลด…</p></div>`;
+    <div id="share-list">${skeletonHtml(4)}</div>`;
   root.querySelector('#btn-add')?.addEventListener('click', () => createModal(root));
   await paintList(root);
 }

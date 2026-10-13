@@ -5,6 +5,7 @@ import {
   ctx, esc, byId, gridHtml, legendHtml, pageHeader, emptyHtml, conflictBadge, effectiveTeacherId, markHtml, cellTypeOf,
 } from './util.js';
 import { mountPickList } from './list-kit.js';
+import { recallLast } from './combobox.js';
 
 export const printBtn = '<button type="button" class="btn" id="btn-print">พิมพ์</button>';
 // เรียนรวม = วิชาสามัญเดียวกัน วัน+คาบเดียวกัน มีกลุ่มเรียนอื่นด้วย
@@ -107,11 +108,11 @@ function renderKindView(root, { kind, title, uiKey, emptyMsg, emptyLink, emptyLi
     root.innerHTML = pageHeader(title) + emptyHtml(emptyMsg, emptyLink, emptyLinkText);
     return;
   }
-  if (!items.some((i) => i.id === ui[uiKey])) ui[uiKey] = items[0].id;
+  if (!items.some((i) => i.id === ui[uiKey])) ui[uiKey] = recallLast(listName, items) || items[0].id;
   const view = buildTimetableView(state, kind, ui[uiKey]);
   root.innerHTML = `
     ${pageHeader(view.title, printBtn)}
-    <div class="card"><div id="pick-root"></div></div>
+    <div class="card no-print"><div id="pick-root"></div></div>
     <p class="text-muted view-meta">${esc(view.meta)}</p>
     ${legendHtml(view.legend)}
     ${gridHtml(view.cell)}`;
