@@ -1,0 +1,32 @@
+import { defineConfig, loadEnv } from 'vite';
+
+// ตัวแปรที่ขึ้นต้น VITE_ ถูกฝังลงไฟล์หน้าเว็บที่ผู้ใช้ทุกคนอ่านได้ — ห้ามใช้กับความลับ (ดู .env.example)
+// ใช้ allowlist (ไม่ใช่รายชื่อคำต้องห้าม): ตัวแปร VITE_* ที่มีค่าและ "ไม่อยู่ในรายการนี้" ทำให้ build/dev ล้มทันที
+// ตอนนี้โค้ดหน้าเว็บ (js/) ไม่อ่าน VITE_* ใด ๆ จึงว่างไว้ — BASE_URL / MODE ที่ Vite ให้เองไม่ขึ้นต้น VITE_ ไม่เกี่ยวข้อง
+// ถ้าจะเพิ่ม: ใส่ชื่อที่เป็นข้อมูลสาธารณะจริง ๆ ที่นี่ พร้อมเหตุผล (ห้ามใส่ความลับ)
+const ALLOWED_VITE_VARS = new Set([]);
+
+const guards = () => ({
+  name: 'tt-build-guards',
+  config(userConfig, { mode }) {
+    const fileEnv = loadEnv(mode, userConfig.root ?? process.cwd(), 'VITE_'); // รวมค่าจาก .env* ด้วย ไม่ใช่แค่ process.env
+    const names = new Set([...Object.keys(process.env), ...Object.keys(fileEnv)].filter((k) => k.startsWith('VITE_')));
+    // ค่าว่างไม่ฝังอะไร (ใช้ล้างค่าจากไฟล์ .env ในเทสต์/สคริปต์ได้) — ตัดสินจากค่าที่มีผลจริง (process.env ชนะไฟล์)
+    const bad = [...names].filter((k) => !ALLOWED_VITE_VARS.has(k) && String(process.env[k] ?? fileEnv[k] ?? '') !== '');
+    if (bad.length) {
+      throw new Error(`ตัวแปร ${bad.join(', ')} ขึ้นต้นด้วย VITE_ จะถูกฝังลงบันเดิลที่ทุกคนอ่านได้ และไม่อยู่ในรายการที่อนุญาตของ vite.config.js — ความลับต้องใช้ชื่อไม่มี VITE_ และอ่านที่ api/ เท่านั้น; ถ้าไม่ใช่ความลับและโค้ดใช้จริง ให้เพิ่มชื่อใน ALLOWED_VITE_VARS (mode: ${mode})`);
+    }
+  },
+});
+
+export default defineConfig({
+  plugins: [guards()],
+  build: {
+    target: 'es2022',
+    outDir: 'dist',
+    emptyOutDir: true,
+    sourcemap: false, // ไม่เผยซอร์สแมปบนโปรดักชัน
+    chunkSizeWarningLimit: 1000, // pdfmake (~970 kB) โหลดแบบ dynamic import เฉพาะตอนส่งออก
+  },
+  server: { port: 5173 },
+});

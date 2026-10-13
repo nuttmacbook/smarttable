@@ -1,0 +1,747 @@
+/* style.css — ระบบจัดตารางเรียนตารางสอน (ศธ.02 / สอศ.)
+   เจ้าของ: มิ้นท์ · รายชื่อ class และวิธีใช้ดูใน docs/design.md
+   รองรับจอ ≥768px · สีทุกคู่ตัวอักษร/พื้นหลังผ่าน WCAG AA (≥4.5:1) */
+
+/* ---------- 0. ฟอนต์ไทย self-host (Sarabun, OFL) — ไฟล์ .ttf อยู่ public/fonts/ (ถ้ายังไม่มีไฟล์ จะ fallback ฟอนต์ระบบ) ---------- */
+@font-face { font-family: "Sarabun"; font-weight: 400; font-style: normal; font-display: swap;
+  src: local("Sarabun"), local("Sarabun Regular"), url("/fonts/Sarabun-Regular.ttf") format("truetype"); }
+@font-face { font-family: "Sarabun"; font-weight: 600; font-style: normal; font-display: swap;
+  src: local("Sarabun SemiBold"), url("/fonts/Sarabun-SemiBold.ttf") format("truetype"); }
+@font-face { font-family: "Sarabun"; font-weight: 700; font-style: normal; font-display: swap;
+  src: local("Sarabun Bold"), url("/fonts/Sarabun-Bold.ttf") format("truetype"); }
+
+/* ---------- 1. Design tokens ---------- */
+:root {
+  --font: "Sarabun", "Noto Sans Thai", "Leelawadee UI", "Tahoma", system-ui, sans-serif;
+  --fs-base: 16px;
+
+  --c-bg: #f4f6fa;
+  --c-surface: #ffffff;
+  --c-border: #cbd5e1;
+  --c-border-strong: #94a3b8;
+  --c-text: #1e293b;
+  --c-muted: #475569;
+
+  --c-primary: #1d4ed8;
+  --c-primary-hover: #1e40af;
+  --c-primary-soft: #dbeafe;
+  --c-danger: #b91c1c;
+  --c-danger-hover: #991b1b;
+  --c-focus: #f59e0b;
+
+  /* สถานะช่องตาราง: พื้น / ตัวอักษร / ขอบ */
+  --st-free-bg: #ffffff;       --st-free-fg: #475569;       --st-free-bd: #94a3b8;
+  --st-filled-bg: #dbeafe;     --st-filled-fg: #1e3a8a;     --st-filled-bd: #3b82f6;
+  --st-conflict-bg: #fee2e2;   --st-conflict-fg: #7f1d1d;   --st-conflict-bd: #dc2626;
+  --st-lunch-bg: #e2e8f0;      --st-lunch-fg: #334155;      --st-lunch-bd: #94a3b8;
+  --st-shared-bg: #ede9fe;     --st-shared-fg: #4c1d95;     --st-shared-bd: #7c3aed;
+  --st-warn-bg: #fef3c7;       --st-warn-fg: #78350f;       --st-warn-bd: #d97706;
+  --st-disabled-bg: #e5e7eb;   --st-disabled-fg: #4b5563;   --st-disabled-bd: #9ca3af;
+  --st-ok-bg: #dcfce7;         --st-ok-fg: #14532d;         --st-ok-bd: #16a34a;
+
+  --radius: 8px;
+  --radius-sm: 5px;
+  --shadow: 0 1px 3px rgba(15, 23, 42, .12), 0 1px 2px rgba(15, 23, 42, .08);
+  --shadow-lg: 0 10px 30px rgba(15, 23, 42, .25);
+  --sp-1: 4px; --sp-2: 8px; --sp-3: 12px; --sp-4: 16px; --sp-5: 24px; --sp-6: 32px;
+}
+
+/* ---------- 2. Base ---------- */
+*, *::before, *::after { box-sizing: border-box; }
+html { font-size: var(--fs-base); }
+body {
+  margin: 0;
+  font-family: var(--font);
+  line-height: 1.6;
+  color: var(--c-text);
+  background: var(--c-bg);
+  min-width: 768px;
+}
+h1, h2, h3 { margin: 0 0 var(--sp-3); line-height: 1.3; }
+h1 { font-size: 1.6rem; }
+h2 { font-size: 1.3rem; }
+h3 { font-size: 1.1rem; }
+p { margin: 0 0 var(--sp-3); }
+a { color: var(--c-primary); }
+:focus-visible { outline: 3px solid var(--c-focus); outline-offset: 2px; }
+[hidden] { display: none !important; }
+
+/* ---------- 3. Layout ---------- */
+.app { display: flex; flex-direction: column; min-height: 100vh; }
+.app-header {
+  background: var(--c-primary-hover); color: #fff;
+  padding: var(--sp-3) var(--sp-5);
+  display: flex; align-items: center; justify-content: space-between; gap: var(--sp-4);
+}
+.app-title { font-size: 1.2rem; font-weight: 700; margin: 0; }
+.app-subtitle { font-size: .9rem; opacity: .95; }
+
+.nav {
+  background: var(--c-surface); border-bottom: 1px solid var(--c-border);
+  display: flex; flex-wrap: wrap; gap: var(--sp-1); padding: 0 var(--sp-5);
+}
+.nav-link {
+  display: inline-block; padding: var(--sp-3) var(--sp-4);
+  color: var(--c-text); text-decoration: none; font-weight: 600;
+  border-bottom: 3px solid transparent;
+}
+.nav-link:hover { background: var(--c-primary-soft); }
+.nav-link.is-active { color: var(--c-primary); border-bottom-color: var(--c-primary); }
+
+.main { flex: 1; padding: var(--sp-5); max-width: 1400px; width: 100%; margin: 0 auto; }
+.page-header {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: var(--sp-4); margin-bottom: var(--sp-4); flex-wrap: wrap;
+}
+.page-header h1, .page-header h2 { margin: 0; }
+
+.card {
+  background: var(--c-surface); border: 1px solid var(--c-border);
+  border-radius: var(--radius); box-shadow: var(--shadow);
+  padding: var(--sp-4); margin-bottom: var(--sp-4);
+}
+.toolbar {
+  display: flex; flex-wrap: wrap; align-items: flex-end; gap: var(--sp-3);
+  margin-bottom: var(--sp-4);
+}
+.toolbar-spacer { flex: 1; }
+.stack > * + * { margin-top: var(--sp-3); }
+.row { display: flex; gap: var(--sp-3); align-items: center; flex-wrap: wrap; }
+.text-muted { color: var(--c-muted); }
+.text-right { text-align: right; }
+.text-center { text-align: center; }
+
+/* ---------- 4. Buttons ---------- */
+.btn {
+  font: inherit; font-weight: 600; cursor: pointer;
+  padding: var(--sp-2) var(--sp-4); min-height: 40px;
+  border: 1px solid var(--c-border-strong); border-radius: var(--radius-sm);
+  background: var(--c-surface); color: var(--c-text);
+}
+.btn:hover { background: #eef2f7; }
+.btn-primary { background: var(--c-primary); border-color: var(--c-primary); color: #fff; }
+.btn-primary:hover { background: var(--c-primary-hover); }
+.btn-danger { background: var(--c-danger); border-color: var(--c-danger); color: #fff; }
+.btn-danger:hover { background: var(--c-danger-hover); }
+.btn-sm { min-height: 32px; padding: var(--sp-1) var(--sp-3); font-size: .9rem; }
+.btn:disabled, .btn.is-disabled {
+  background: var(--st-disabled-bg); color: var(--st-disabled-fg);
+  border-color: var(--st-disabled-bd); cursor: not-allowed;
+}
+
+/* ---------- 5. Forms ---------- */
+.field { display: flex; flex-direction: column; gap: var(--sp-1); margin-bottom: var(--sp-3); }
+.field-label { font-weight: 600; }
+.field-label .required { color: var(--c-danger); }
+.field-hint { font-size: .875rem; color: var(--c-muted); }
+.field-error { font-size: .875rem; color: var(--c-danger); font-weight: 600; }
+.input, .select, .textarea {
+  font: inherit; color: var(--c-text); background: #fff;
+  padding: var(--sp-2) var(--sp-3); min-height: 40px;
+  border: 1px solid var(--c-border-strong); border-radius: var(--radius-sm);
+}
+.input:focus, .select:focus, .textarea:focus { border-color: var(--c-primary); }
+.input.is-invalid, .select.is-invalid { border-color: var(--c-danger); background: #fff5f5; }
+.textarea { min-height: 80px; resize: vertical; }
+.form-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 0 var(--sp-4); }
+.form-grid .span-2 { grid-column: span 2; }
+.form-actions { display: flex; justify-content: flex-end; gap: var(--sp-2); margin-top: var(--sp-4); }
+
+/* ---------- 6. Data table (รายวิชา/ห้อง/ครู) ---------- */
+.table-wrap { overflow-x: auto; }
+.data-table { width: 100%; border-collapse: collapse; background: var(--c-surface); }
+.data-table th, .data-table td {
+  padding: var(--sp-2) var(--sp-3); border-bottom: 1px solid var(--c-border); text-align: left;
+}
+.data-table th { background: #e8edf4; font-weight: 700; position: sticky; top: 0; }
+.data-table tbody tr:hover { background: #f1f5f9; }
+.data-table .col-actions { white-space: nowrap; text-align: right; }
+.table-wrap.card { padding: 0; }
+.empty-state p { margin-bottom: var(--sp-3); }
+.empty-state {
+  padding: var(--sp-6); text-align: center; color: var(--c-muted);
+  border: 2px dashed var(--c-border-strong); border-radius: var(--radius); background: var(--c-surface);
+}
+
+/* ---------- 7. ตารางคาบ (timetable) ----------
+   ผัง v2: แถว = วัน จ–ศ (5 แถว) · คอลัมน์ = หัวแถววัน + คาบ 1–4 + พักเที่ยง + คาบ 5–11 (12 คอลัมน์ข้อมูล)
+   จอ ≥1100px พอดีจอ · แคบกว่านั้น (768–1100px) เลื่อนแนวนอน โดยหัวแถว "วัน" ติดซ้าย */
+.tt-wrap { overflow-x: auto; background: var(--c-surface); border: 1px solid var(--c-border); border-radius: var(--radius); }
+.timetable {
+  width: 100%; min-width: 1060px; border-collapse: separate; border-spacing: 3px;
+  table-layout: fixed;
+}
+.timetable th { background: #e8edf4; padding: var(--sp-1); font-size: .85rem; font-weight: 700; text-align: center; }
+.timetable thead th { vertical-align: middle; }
+.timetable th.tt-day { width: 76px; }
+.timetable .tt-lunch-col, .timetable th.tt-lunch-head { width: 46px; }
+.timetable tbody th { /* หัวแถว = ชื่อวัน */
+  position: sticky; left: 0; z-index: 1; font-size: 1rem; background: #dbe3ee;
+}
+.tt-cell:focus-visible { outline-offset: -3px; }
+.tt-period-no { display: block; font-size: .95rem; }
+.tt-period-time { display: block; font-size: .72rem; font-weight: 400; color: var(--c-muted); white-space: nowrap; }
+
+.tt-cell {
+  height: 88px; padding: var(--sp-1); vertical-align: top;
+  border: 1px solid var(--st-free-bd); border-radius: var(--radius-sm);
+  background: var(--st-free-bg); color: var(--st-free-fg);
+  font-size: .8rem; line-height: 1.3; overflow: hidden; overflow-wrap: anywhere; position: relative;
+}
+.tt-cell-title { font-weight: 700; display: block; }
+.tt-cell-sub { display: block; }
+.tt-cell-room { display: block; font-weight: 600; }
+.tt-cell-room::before { content: "ห้อง "; font-weight: 400; }
+.tt-cell-badge {
+  display: inline-block; margin-top: 2px; padding: 0 6px; border-radius: 999px;
+  font-size: .72rem; font-weight: 700; background: #fff; border: 1px solid currentColor;
+}
+
+/* สถานะช่อง */
+.tt-cell.is-free { border-style: dashed; cursor: pointer; }
+.tt-cell.is-free:hover { background: var(--c-primary-soft); border-color: var(--c-primary); color: var(--c-primary-hover); }
+.tt-cell.is-filled { background: var(--st-filled-bg); color: var(--st-filled-fg); border-color: var(--st-filled-bd); cursor: pointer; }
+.tt-cell.is-filled:hover { box-shadow: var(--shadow); }
+.tt-cell.is-conflict { background: var(--st-conflict-bg); color: var(--st-conflict-fg); border: 2px solid var(--st-conflict-bd); }
+.tt-cell.is-shared { background: var(--st-shared-bg); color: var(--st-shared-fg); border-color: var(--st-shared-bd); }
+.tt-cell.is-warning { background: var(--st-warn-bg); color: var(--st-warn-fg); border-color: var(--st-warn-bd); }
+/* ระดับของกลุ่มเรียนไม่ตรงกับระดับที่วิชาเปิด (ข้อมูลเก่า/นำเข้า) — ขอบเส้นประหนาต่างจากชนปกติ */
+.tt-cell.is-level-mismatch { background: var(--st-conflict-bg); color: var(--st-conflict-fg); border: 2px dashed var(--st-conflict-bd); }
+.tt-cell.is-readonly { cursor: default; }
+.tt-cell.is-readonly:hover { box-shadow: none; }
+.tt-cell.is-free.is-readonly:hover { background: var(--st-free-bg); border-color: var(--st-free-bd); color: var(--st-free-fg); }
+
+/* คอลัมน์พักเที่ยง (คั่นระหว่างคาบ 4 กับ 5) — th.tt-lunch-head ในหัวตาราง + td.tt-lunch rowspan=5 (หรือ td ต่อแถว) */
+.tt-lunch, .timetable th.tt-lunch-head {
+  background: var(--st-lunch-bg); color: var(--st-lunch-fg);
+  border: 1px solid var(--st-lunch-bd); border-radius: var(--radius-sm);
+  text-align: center; font-weight: 700; padding: var(--sp-1); font-size: .8rem;
+  cursor: not-allowed;
+}
+td.tt-lunch {
+  background-image: repeating-linear-gradient(45deg, transparent 0 8px, rgba(255,255,255,.55) 8px 16px);
+}
+
+/* ---------- 8. Legend / badge / alert ---------- */
+.legend { display: flex; flex-wrap: wrap; gap: var(--sp-4); margin: var(--sp-3) 0; font-size: .9rem; }
+.legend-item { display: inline-flex; align-items: center; gap: var(--sp-2); }
+.legend-swatch { width: 18px; height: 18px; border-radius: 4px; border: 1px solid var(--st-free-bd); background: var(--st-free-bg); }
+.legend-swatch.is-free { border-style: dashed; }
+.legend-swatch.is-filled { background: var(--st-filled-bg); border-color: var(--st-filled-bd); }
+.legend-swatch.is-conflict { background: var(--st-conflict-bg); border: 2px solid var(--st-conflict-bd); }
+.legend-swatch.is-lunch { background: var(--st-lunch-bg); border-color: var(--st-lunch-bd); }
+.legend-swatch.is-shared { background: var(--st-shared-bg); border-color: var(--st-shared-bd); }
+.legend-swatch.is-level-mismatch { background: var(--st-conflict-bg); border: 2px dashed var(--st-conflict-bd); }
+.legend-swatch.is-warning { background: var(--st-warn-bg); border-color: var(--st-warn-bd); }
+
+.badge {
+  display: inline-block; padding: 1px 10px; border-radius: 999px;
+  font-size: .8rem; font-weight: 700; background: #e2e8f0; color: #1e293b;
+}
+.badge-general { background: var(--st-filled-bg); color: var(--st-filled-fg); }
+.badge-vocational { background: var(--st-ok-bg); color: var(--st-ok-fg); }
+.badge-shared { background: var(--st-shared-bg); color: var(--st-shared-fg); }
+.badge-conflict { background: var(--st-conflict-bg); color: var(--st-conflict-fg); }
+
+.alert {
+  padding: var(--sp-3) var(--sp-4); border-radius: var(--radius-sm);
+  border: 1px solid; border-left-width: 6px; margin-bottom: var(--sp-3);
+}
+.alert-info { background: var(--c-primary-soft); color: #1e3a8a; border-color: var(--st-filled-bd); }
+.alert-success { background: var(--st-ok-bg); color: var(--st-ok-fg); border-color: var(--st-ok-bd); }
+.alert-warning { background: var(--st-warn-bg); color: var(--st-warn-fg); border-color: var(--st-warn-bd); }
+.alert-error { background: var(--st-conflict-bg); color: var(--st-conflict-fg); border-color: var(--st-conflict-bd); }
+.alert ul { margin: var(--sp-1) 0 0; padding-left: var(--sp-5); }
+
+/* ---------- 9. Modal ---------- */
+.modal-backdrop {
+  position: fixed; inset: 0; background: rgba(15, 23, 42, .55);
+  display: flex; align-items: center; justify-content: center; padding: var(--sp-5); z-index: 100;
+}
+.modal {
+  background: var(--c-surface); border-radius: var(--radius); box-shadow: var(--shadow-lg);
+  width: 100%; max-width: 560px; max-height: 90vh; display: flex; flex-direction: column;
+}
+.modal-lg { max-width: 760px; }
+.modal-header {
+  padding: var(--sp-4); border-bottom: 1px solid var(--c-border);
+  display: flex; align-items: center; justify-content: space-between;
+}
+.modal-title { margin: 0; font-size: 1.15rem; }
+.modal-close { font-size: 1.4rem; line-height: 1; background: none; border: 0; cursor: pointer; padding: var(--sp-1) var(--sp-2); color: var(--c-muted); }
+.modal-body { padding: var(--sp-4); overflow-y: auto; }
+.modal-footer {
+  padding: var(--sp-3) var(--sp-4); border-top: 1px solid var(--c-border);
+  display: flex; justify-content: flex-end; gap: var(--sp-2);
+}
+
+/* รายการวิชาให้เลือกใน modal ลงคาบ */
+.pick-list { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--sp-2); }
+.pick-item {
+  display: block; width: 100%; text-align: left; font: inherit; cursor: pointer;
+  padding: var(--sp-3); border: 1px solid var(--st-filled-bd); border-radius: var(--radius-sm);
+  background: var(--c-surface); color: var(--c-text);
+}
+.pick-item:hover { background: var(--c-primary-soft); }
+.pick-item-title { font-weight: 700; display: block; }
+.pick-item-sub { display: block; font-size: .9rem; color: var(--c-muted); }
+.pick-item.is-shared { border-color: var(--st-shared-bd); background: var(--st-shared-bg); color: var(--st-shared-fg); }
+.pick-item.is-shared .pick-item-sub { color: var(--st-shared-fg); }
+.pick-item.is-disabled {
+  background: var(--st-disabled-bg); color: var(--st-disabled-fg);
+  border-color: var(--st-disabled-bd); cursor: not-allowed;
+}
+.pick-item.is-disabled .pick-item-sub { color: var(--st-disabled-fg); }
+.pick-item-reason { display: block; margin-top: 2px; font-size: .85rem; font-weight: 600; color: var(--st-conflict-fg); }
+
+/* ---------- 10. Toast ---------- */
+.toast-area { position: fixed; right: var(--sp-5); bottom: var(--sp-5); display: grid; gap: var(--sp-2); z-index: 200; }
+.toast {
+  background: #1e293b; color: #fff; padding: var(--sp-3) var(--sp-4);
+  border-radius: var(--radius-sm); box-shadow: var(--shadow-lg); max-width: 380px;
+}
+.toast-success { background: var(--st-ok-fg); }
+.toast-error { background: var(--st-conflict-fg); }
+
+/* ---------- 11. ป้ายระดับ / chips เลือกหลายค่า ---------- */
+.badge-level { background: #e0e7ff; color: #312e81; }
+.badge-room { background: #ccfbf1; color: #134e4a; }
+.badge-group { background: #f1f5f9; color: #1e293b; border: 1px solid var(--c-border-strong); }
+.badge-list { display: inline-flex; flex-wrap: wrap; gap: var(--sp-1); }
+
+/* <fieldset class="chip-group"><label class="chip"><input type="checkbox"><span>ปวช.1</span></label>…</fieldset> */
+.chip-group { border: 0; padding: 0; margin: 0; display: flex; flex-wrap: wrap; gap: var(--sp-2); }
+.chip { position: relative; display: inline-block; cursor: pointer; }
+.chip input { position: absolute; opacity: 0; inset: 0; width: 100%; height: 100%; margin: 0; cursor: pointer; }
+.chip span {
+  display: inline-block; min-height: 40px; padding: var(--sp-2) var(--sp-4);
+  border: 1px solid var(--c-border-strong); border-radius: 999px;
+  background: var(--c-surface); color: var(--c-text); font-weight: 600;
+}
+.chip:hover span { background: #eef2f7; }
+.chip input:checked + span { background: var(--c-primary); border-color: var(--c-primary); color: #fff; }
+.chip input:checked + span::before { content: "✓ "; }
+.chip input:focus-visible + span { outline: 3px solid var(--c-focus); outline-offset: 2px; }
+.chip-group.is-invalid .chip span { border-color: var(--c-danger); }
+
+/* ---------- 11.1 ตัวกรองวิชา / เลือกครูหลายคน (SPEC v3) ---------- */
+.filter-bar {
+  display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: var(--sp-2) var(--sp-4);
+  padding: var(--sp-2) var(--sp-3); margin-bottom: var(--sp-3);
+  background: #f1f5f9; border: 1px solid var(--c-border); border-radius: var(--radius-sm);
+}
+.filter-bar .field { margin: 0; }
+.filter-note { margin: 0 0 var(--sp-3); font-size: .9rem; color: var(--c-muted); }
+.filter-note strong { color: var(--c-text); }
+/* รายชื่อครูหลายคนในเซลล์ตารางข้อมูล */
+.teacher-list { display: inline-flex; flex-wrap: wrap; gap: var(--sp-1); list-style: none; margin: 0; padding: 0; }
+.badge-teacher { background: #fef9c3; color: #713f12; }
+.badge-teacher-busy { background: var(--st-conflict-bg); color: var(--st-conflict-fg); }
+.pick-item-teacher { display: block; font-size: .9rem; font-weight: 600; }
+/* วิชาลงได้ แต่ต้องเลือกครูก่อน (มีหลายครู) — เตือนอ่อน แยกจาก .is-disabled (ลงไม่ได้) */
+.pick-item.needs-teacher { background: var(--st-warn-bg); color: var(--st-warn-fg); border-color: var(--st-warn-bd); }
+.pick-item.needs-teacher:hover { background: #fde68a; }
+.pick-item.needs-teacher .pick-item-sub { color: var(--st-warn-fg); }
+.pick-item-hint { display: block; margin-top: 2px; font-size: .85rem; font-weight: 600; color: var(--st-warn-fg); }
+.pick-item-hint::before { content: "ต้องเลือกครู: "; font-weight: 700; }
+
+/* ---------- 11.2 SPEC v4: แผงรายวิชา / ความคืบหน้า ---------- */
+/* ≥1100px แผงอยู่ซ้ายข้างตาราง · <1100px เป็นลิ้นชักพับ (ปุ่ม .panel-toggle) */
+.schedule-layout { display: grid; grid-template-columns: 290px minmax(0, 1fr); gap: var(--sp-4); align-items: start; }
+.subject-panel {
+  position: sticky; top: var(--sp-3); max-height: calc(100vh - 24px); overflow-y: auto;
+  background: var(--c-surface); border: 1px solid var(--c-border); border-radius: var(--radius); box-shadow: var(--shadow);
+}
+.subject-panel-header {
+  position: sticky; top: 0; z-index: 1; background: var(--c-surface);
+  display: flex; align-items: center; justify-content: space-between; gap: var(--sp-2);
+  padding: var(--sp-3) var(--sp-3) var(--sp-2); border-bottom: 1px solid var(--c-border);
+}
+.subject-panel-title { margin: 0; font-size: 1.05rem; }
+.subject-panel-summary { padding: var(--sp-2) var(--sp-3); font-size: .85rem; color: var(--c-muted); border-bottom: 1px solid var(--c-border); }
+.subject-panel-empty { padding: var(--sp-4); text-align: center; color: var(--c-muted); }
+.panel-toggle, .panel-backdrop { display: none; }
+.subject-list { list-style: none; margin: 0; padding: var(--sp-2); display: grid; gap: var(--sp-2); }
+
+.subject-item {
+  display: block; width: 100%; text-align: left; font: inherit; cursor: pointer;
+  padding: var(--sp-2) var(--sp-3); border: 1px solid var(--c-border-strong); border-left-width: 6px;
+  border-radius: var(--radius-sm); background: var(--c-surface); color: var(--c-text);
+}
+.subject-item:hover { background: #eef2f7; }
+.subject-item-title { display: block; font-weight: 700; line-height: 1.35; }
+.subject-item-sub { display: block; font-size: .85rem; color: var(--c-muted); }
+.subject-item-hours { display: flex; justify-content: space-between; align-items: center; gap: var(--sp-2); margin-top: var(--sp-1); font-size: .85rem; }
+/* วิชาที่กำลังลง (ไฮไลต์) — ขอบหนาเต็ม + พื้นน้ำเงินอ่อน + ✓ ไม่พึ่งสีอย่างเดียว */
+.subject-item.is-active {
+  background: var(--c-primary-soft); border-color: var(--c-primary); border-width: 2px; border-left-width: 6px;
+  box-shadow: 0 0 0 2px rgba(29, 78, 216, .25);
+}
+.subject-item.is-active .subject-item-title::before { content: "▶ "; color: var(--c-primary); }
+/* สถานะชั่วโมง: เหลือ (ขอบเหลือง) / เสร็จ (ขอบเขียว) / เกิน (ขอบแดง) */
+.subject-item.is-remaining { border-left-color: var(--st-warn-bd); }
+.subject-item.is-done { border-left-color: var(--st-ok-bd); background: #f8fafc; color: var(--c-muted); }
+.subject-item.is-done .subject-item-title { font-weight: 600; }
+.subject-item.is-over { border-left-color: var(--st-conflict-bd); background: var(--st-conflict-bg); color: var(--st-conflict-fg); }
+.subject-item.is-over .subject-item-sub { color: var(--st-conflict-fg); }
+
+/* ป้ายสถานะ มีไอคอน+ข้อความเสมอ */
+.status-chip { display: inline-block; padding: 0 8px; border-radius: 999px; font-size: .78rem; font-weight: 700; white-space: nowrap; border: 1px solid currentColor; }
+.status-remaining { background: var(--st-warn-bg); color: var(--st-warn-fg); }
+.status-remaining::before { content: "◔ "; }
+.status-done { background: var(--st-ok-bg); color: var(--st-ok-fg); }
+.status-done::before { content: "✓ "; }
+.status-over { background: var(--st-conflict-bg); color: var(--st-conflict-fg); }
+.status-over::before { content: "⚠ "; }
+
+/* แถบความคืบหน้า: <div class="progress" role="progressbar" aria-valuenow aria-valuemax><div class="progress-bar" style="width:60%"></div></div> */
+.progress { height: 8px; margin-top: var(--sp-1); background: #e2e8f0; border: 1px solid var(--c-border-strong); border-radius: 999px; overflow: hidden; }
+.progress-bar { height: 100%; background: var(--c-primary); }
+.is-done .progress-bar { background: #15803d; }
+.is-over .progress-bar { background: var(--c-danger); }
+
+/* ป้าย "กำลังลง: …" เหนือตาราง */
+.placing-bar {
+  display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: var(--sp-2) var(--sp-4);
+  padding: var(--sp-2) var(--sp-3); margin-bottom: var(--sp-3);
+  background: var(--c-primary-soft); color: #1e3a8a; border: 2px solid var(--c-primary); border-radius: var(--radius-sm);
+}
+.placing-bar strong { font-weight: 700; }
+
+/* ---------- 11.3 แถบสถานะเชื่อมต่อ / ข้อมูลเดิมเกินชั่วโมง / โหมดดูอย่างเดียว ---------- */
+.conn-status {
+  display: inline-flex; align-items: center; gap: var(--sp-1); padding: 2px 12px; border-radius: 999px;
+  font-size: .85rem; font-weight: 700; background: #fff; color: var(--c-text); border: 2px solid var(--c-border-strong);
+}
+.conn-status::before { font-weight: 400; }
+.conn-saved { color: var(--st-ok-fg); border-color: var(--st-ok-bd); }
+.conn-saved::before { content: "✓"; }
+.conn-saving { color: #1e3a8a; border-color: var(--st-filled-bd); }
+.conn-saving::before { content: "↻"; }
+.conn-conflict { color: var(--st-warn-fg); background: var(--st-warn-bg); border-color: var(--st-warn-bd); }
+.conn-conflict::before { content: "⚠"; }
+.conn-offline { color: var(--st-conflict-fg); background: var(--st-conflict-bg); border-color: var(--st-conflict-bd); }
+.conn-offline::before { content: "✖"; }
+.legacy-bar {
+  position: sticky; top: 0; z-index: 50; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: var(--sp-2);
+  padding: var(--sp-3) var(--sp-5); background: var(--st-conflict-bg); color: var(--st-conflict-fg);
+  border-bottom: 3px solid var(--st-conflict-bd); font-weight: 700;
+}
+.legacy-bar::before { content: "⚠ "; }
+.badge-readonly {
+  display: inline-block; padding: 2px 12px; border-radius: 999px; font-size: .85rem; font-weight: 700;
+  background: #fff; color: #334155; border: 2px dashed #334155;
+}
+.badge-readonly::before { content: "👁 "; }
+.badge-admin { display: inline-block; padding: 2px 12px; border-radius: 999px; font-size: .85rem; font-weight: 700; background: #fff; color: var(--c-primary-hover); border: 2px solid var(--c-primary); }
+.viewer-banner { margin-bottom: var(--sp-3); }
+
+/* ---------- 11.4 หน้าเข้าสู่ระบบ ---------- */
+.login-wrap { display: flex; justify-content: center; padding: var(--sp-6) 0; }
+.login-card {
+  width: 100%; max-width: 400px; background: var(--c-surface); border: 1px solid var(--c-border);
+  border-radius: var(--radius); box-shadow: var(--shadow-lg); padding: var(--sp-5);
+}
+.login-card h1 { font-size: 1.3rem; text-align: center; }
+.login-card .btn { width: 100%; }
+.login-card .field-error { text-align: center; }
+
+/* ---------- 11.5 ลิงก์แชร์ ---------- */
+.share-link {
+  display: flex; align-items: center; gap: var(--sp-2); padding: var(--sp-2) var(--sp-3);
+  background: #f1f5f9; border: 1px solid var(--c-border-strong); border-radius: var(--radius-sm);
+}
+.share-link code, .share-url { flex: 1; min-width: 0; font-family: ui-monospace, Menlo, Consolas, monospace; font-size: .85rem; overflow-wrap: anywhere; user-select: all; }
+.badge-scope { background: #e0e7ff; color: #312e81; }
+.badge-status-active { background: var(--st-ok-bg); color: var(--st-ok-fg); }
+.badge-status-active::before { content: "● "; }
+.badge-status-revoked { background: var(--st-conflict-bg); color: var(--st-conflict-fg); }
+.badge-status-revoked::before { content: "✖ "; }
+.badge-status-expired { background: var(--st-disabled-bg); color: var(--st-disabled-fg); }
+.badge-status-expired::before { content: "◷ "; }
+.data-table tr.is-revoked td { color: var(--c-muted); text-decoration: line-through; }
+.data-table tr.is-revoked td.col-actions, .data-table tr.is-revoked td:has(.badge) { text-decoration: none; }
+.token-reveal { word-break: break-all; }
+
+/* ---------- 11.6 รายงานนำเข้า ---------- */
+.report-summary { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: var(--sp-3); margin-bottom: var(--sp-4); }
+.report-stat { padding: var(--sp-3); background: var(--c-surface); border: 1px solid var(--c-border); border-radius: var(--radius-sm); text-align: center; }
+.report-stat-num { display: block; font-size: 1.5rem; font-weight: 700; line-height: 1.2; }
+.report-stat.is-error { border: 2px solid var(--st-conflict-bd); background: var(--st-conflict-bg); color: var(--st-conflict-fg); }
+.report-stat.is-warning { border: 2px solid var(--st-warn-bd); background: var(--st-warn-bg); color: var(--st-warn-fg); }
+.report-stat.is-info { border: 2px solid var(--st-filled-bd); background: var(--st-filled-bg); color: var(--st-filled-fg); }
+.report-table td { vertical-align: top; }
+.report-table tr.row-error td { background: var(--st-conflict-bg); color: var(--st-conflict-fg); }
+.report-table tr.row-warning td { background: var(--st-warn-bg); color: var(--st-warn-fg); }
+.report-table tr.row-info td { background: var(--st-filled-bg); color: var(--st-filled-fg); }
+.level-badge { display: inline-block; padding: 0 8px; border-radius: 999px; font-size: .8rem; font-weight: 700; background: #fff; border: 1px solid currentColor; white-space: nowrap; }
+.level-error::before { content: "✖ "; }
+.level-warning::before { content: "⚠ "; }
+.level-info::before { content: "ℹ "; }
+.report-scroll { max-height: 420px; overflow: auto; border: 1px solid var(--c-border); border-radius: var(--radius-sm); }
+.dropzone {
+  padding: var(--sp-5); text-align: center; border: 2px dashed var(--c-border-strong); border-radius: var(--radius);
+  background: var(--c-surface); color: var(--c-muted);
+}
+.dropzone.is-over { border-color: var(--c-primary); background: var(--c-primary-soft); color: var(--c-primary-hover); }
+
+/* ---------- 11.7 กล่องส่งออก/พิมพ์ ---------- */
+.export-box { background: var(--c-surface); border: 1px solid var(--c-border); border-radius: var(--radius); padding: var(--sp-4); margin-bottom: var(--sp-4); }
+.export-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 0 var(--sp-4); }
+.export-list { max-height: 220px; overflow-y: auto; padding: var(--sp-2); border: 1px solid var(--c-border); border-radius: var(--radius-sm); background: #fff; display: grid; grid-template-columns: repeat(2, 1fr); gap: var(--sp-1) var(--sp-3); }
+.export-list label { display: flex; align-items: center; gap: var(--sp-2); min-height: 32px; cursor: pointer; }
+.export-actions { display: flex; flex-wrap: wrap; gap: var(--sp-2); margin-top: var(--sp-3); }
+
+/* <1100px: แผงเป็นลิ้นชักซ้าย */
+@media (max-width: 1099px) {
+  .schedule-layout { display: block; }
+  .panel-toggle { display: inline-block; margin-bottom: var(--sp-3); }
+  .subject-panel {
+    position: fixed; top: 0; left: 0; bottom: 0; width: min(340px, 90vw); max-height: none; z-index: 120;
+    border-radius: 0 var(--radius) var(--radius) 0; transform: translateX(-105%); transition: transform .2s ease;
+  }
+  .subject-panel.is-open { transform: translateX(0); }
+  .panel-backdrop.is-open { display: block; position: fixed; inset: 0; background: rgba(15, 23, 42, .5); z-index: 110; }
+  .export-grid, .export-list { grid-template-columns: 1fr; }
+}
+@media (prefers-reduced-motion: reduce) { .subject-panel { transition: none; } }
+
+/* ---------- 11.8 SPEC v5: ระบบสัญลักษณ์/ลาย (ใช้เหมือนกัน จอ + พิมพ์ + PDF) ----------
+   ชนิดช่อง = class บน td: type-general | type-vocational  (+ is-shared เมื่อเรียนรวม)
+   สัญลักษณ์ = <span class="tt-mark tt-mark-general|vocational|shared">ส|ช|ร</span> วางหน้าชื่อวิชาใน .tt-cell-title
+   (ใช้ตัวอักษรไทยที่มีในฟอนต์ Sarabun แน่นอน + รูปทรงจาก CSS/เส้นวาด ไม่พึ่งสัญลักษณ์พิเศษที่ฟอนต์อาจไม่มี) */
+.tt-mark {
+  display: inline-flex; align-items: center; justify-content: center; vertical-align: baseline;
+  width: 1.45em; height: 1.45em; margin-right: 3px; font-size: .8em; font-weight: 700; line-height: 1; flex: none;
+}
+.tt-mark-general { border: 1.5px solid currentColor; border-radius: 50%; }
+.tt-mark-vocational { background: #052e16; color: #fff; border-radius: 50%; }
+.tt-mark-shared { border: 3px double currentColor; border-radius: 3px; }
+/* วิชาสามัญ: พื้นอ่อน ตัวปกติ */
+.tt-cell.type-general:not(.is-conflict):not(.is-warning):not(.is-level-mismatch):not(.is-shared) { background: #dbeafe; color: #1e3a8a; border-color: #3b82f6; }
+/* วิชาชีพเฉพาะ: พื้นเข้มขึ้น + ลายเส้นทแยง + ตัวหนา */
+.tt-cell.type-vocational:not(.is-conflict):not(.is-warning):not(.is-level-mismatch) {
+  background-color: #86efac; color: #052e16; border-color: #15803d; font-weight: 600;
+  background-image: repeating-linear-gradient(135deg, rgba(5, 46, 22, .14) 0 2px, transparent 2px 7px);
+}
+/* เรียนรวม: ขอบคู่หนา (ม่วง) */
+.tt-cell.is-shared { border-style: double; border-width: 4px; }
+/* พักเที่ยง: ลายทแยงถี่ + ข้อความแนวตั้ง */
+td.tt-lunch { background-image: repeating-linear-gradient(45deg, rgba(51, 65, 85, .22) 0 2px, transparent 2px 6px); }
+.tt-lunch-text { writing-mode: vertical-rl; text-orientation: mixed; display: inline-block; letter-spacing: .05em; }
+/* legend */
+.legend-swatch.type-general { background: #dbeafe; border-color: #3b82f6; }
+.legend-swatch.type-vocational { background-color: #86efac; border-color: #15803d; background-image: repeating-linear-gradient(135deg, rgba(5, 46, 22, .22) 0 2px, transparent 2px 6px); }
+.legend-swatch.is-shared { border-style: double; border-width: 4px; }
+
+/* ข้อความในช่องไม่ล้น: ฟ้าคำนวณระดับ 1–4 จากจำนวนตัวอักษร/จำนวนคอลัมน์ ใส่ที่ td (tt-fs-N) */
+.timetable { table-layout: fixed; }
+.tt-cell-title, .tt-cell-sub, .tt-cell-room {
+  display: -webkit-box; -webkit-box-orient: vertical; overflow: hidden; text-overflow: ellipsis; overflow-wrap: anywhere;
+  -webkit-line-clamp: var(--tt-lines, 3); line-clamp: var(--tt-lines, 3);
+}
+.tt-cell-sub, .tt-cell-room { --tt-lines: 1; }
+/* ชื่อ class จริงที่ฟ้าใช้ = tt-fit-1..4 (tt-fs-N เป็นชื่อสำรองเทียบเท่า) */
+.tt-fs-1, .tt-fit-1 { font-size: .8rem; --tt-lines: 3; }
+.tt-fs-2, .tt-fit-2 { font-size: .72rem; --tt-lines: 4; }
+.tt-fs-3, .tt-fit-3 { font-size: .68rem; --tt-lines: 5; }
+.tt-fs-4, .tt-fit-4 { font-size: .64rem; --tt-lines: 6; }
+[class*="tt-fs-"] .tt-cell-sub, [class*="tt-fit-"] .tt-cell-sub,
+[class*="tt-fs-"] .tt-cell-room, [class*="tt-fit-"] .tt-cell-room { --tt-lines: 1; }
+/* ชื่อเต็มอ่านได้จาก title="" บนจอ · หน้าพิมพ์ใช้ตารางรหัส→ชื่อเต็มใต้ตาราง (.tt-fulltext) */
+.tt-fulltext { margin-top: var(--sp-2); font-size: .75rem; color: var(--c-muted); columns: 2; column-gap: var(--sp-4); }
+.tt-fulltext li { break-inside: avoid; }
+
+/* ---------- 11.9 โหมดเลือกหลายช่อง ---------- */
+.multi-bar {
+  display: flex; align-items: center; flex-wrap: wrap; gap: var(--sp-2) var(--sp-3);
+  padding: var(--sp-2) var(--sp-3); margin-bottom: var(--sp-3);
+  background: #f1f5f9; border: 1px solid var(--c-border-strong); border-radius: var(--radius-sm);
+}
+.multi-bar.is-on { background: var(--c-primary-soft); border: 2px solid var(--c-primary); }
+.multi-bar.is-remove { background: var(--st-conflict-bg); border: 2px dashed var(--st-conflict-bd); }
+.multi-count { font-weight: 700; min-width: 7em; }
+.multi-actions { display: flex; flex-wrap: wrap; gap: var(--sp-2); margin-left: auto; }
+.multi-actions .btn { min-height: 44px; }
+.multi-mode-label { font-weight: 700; }
+/* ช่องที่เลือก: กรอบหนาน้ำเงิน + ✓ มุมขวาบน (ไม่พึ่งสี) */
+.tt-cell.is-selected { outline: 3px solid var(--c-primary); outline-offset: -3px; box-shadow: inset 0 0 0 9999px rgba(29, 78, 216, .12); }
+.tt-cell.is-selected::after {
+  content: "✓"; position: absolute; top: 1px; right: 1px; width: 1.4em; height: 1.4em;
+  display: flex; align-items: center; justify-content: center; font-size: .8rem; font-weight: 700;
+  background: var(--c-primary); color: #fff; border-radius: 50%;
+}
+/* โหมดลบ: ช่องที่เลือกกรอบแดงประ + ✕ */
+.multi-bar.is-remove ~ .tt-wrap .tt-cell.is-selected, .tt-wrap.is-remove .tt-cell.is-selected { outline: 3px dashed var(--st-conflict-bd); box-shadow: inset 0 0 0 9999px rgba(185, 28, 28, .12); }
+.tt-wrap.is-remove .tt-cell.is-selected::after { content: "✕"; background: var(--c-danger); }
+/* ระหว่างลาก: กรอบประฟ้าไม่มีไอคอน (ต่างจากเลือกแล้ว = เส้นทึบ+✓) · ช่องเริ่มต้น/ล่าสุดหนาขึ้น */
+.tt-cell.is-range-preview { outline: 3px dashed var(--c-primary); outline-offset: -3px; }
+.tt-cell.is-anchor { outline-width: 5px; }
+/* ช่องที่เลือกไม่ได้ในโหมดนี้ (พักเที่ยง/มีวิชาแล้ว) */
+.tt-cell.is-skipped { opacity: .55; cursor: not-allowed; }
+.tt-wrap.is-selecting { user-select: none; -webkit-user-select: none; touch-action: none; }
+.tt-wrap.is-multi .tt-cell { cursor: crosshair; }
+
+/* ปุ่มสลับโหมด (ฟ้าใช้ .btn.multi-toggle แทน .switch ได้) — เปิด = พื้นน้ำเงิน + ✓ นำหน้า */
+.btn.multi-toggle { min-height: 44px; }
+.btn.multi-toggle[aria-pressed="true"], .btn.multi-toggle.is-on { background: var(--c-primary); border-color: var(--c-primary-hover); color: #fff; }
+.btn.multi-toggle[aria-pressed="true"]::before, .btn.multi-toggle.is-on::before { content: "✓ "; }
+/* กล่องผลรายช่อง (ฟ้าใช้ชื่อ .multi-result เป็นกล่องห่อ) */
+.multi-result { margin-top: var(--sp-3); padding: var(--sp-3); background: var(--c-surface); border: 1px solid var(--c-border-strong); border-radius: var(--radius-sm); }
+.multi-result table { width: 100%; border-collapse: collapse; }
+.multi-result th, .multi-result td { padding: var(--sp-1) var(--sp-3); border-bottom: 1px solid var(--c-border); text-align: left; }
+/* กล่องผลรายช่อง (dry run) */
+.result-summary { font-weight: 700; margin-bottom: var(--sp-2); }
+.result-table td, .result-table th { padding: var(--sp-1) var(--sp-3); }
+.result-ok { color: var(--st-ok-fg); font-weight: 700; }
+.result-ok::before { content: "✓ "; }
+.result-fail { color: var(--st-conflict-fg); font-weight: 700; }
+.result-fail::before { content: "✗ "; }
+.result-table tr.row-fail td { background: var(--st-conflict-bg); }
+.result-table tr.row-ok td { background: var(--st-ok-bg); }
+.result-reason { display: block; font-weight: 400; color: var(--st-conflict-fg); }
+/* ป้ายเหตุผลสั้นต่อ type: ข้อความป้ายเป็นตัวบอกชนิด (ไม่พึ่งสี) ข้อความเต็มอยู่ใน .result-reason ในแถวเดียวกัน (อ่านได้ตอนพิมพ์/ทัช) */
+.reason-chip {
+  display: inline-block; margin-right: var(--sp-2); padding: 0 8px; border-radius: 4px; border: 1.5px solid currentColor;
+  font-size: .8rem; font-weight: 700; background: #fff; color: var(--st-conflict-fg); white-space: nowrap;
+}
+.reason-chip.reason-ok { color: var(--st-ok-fg); }
+.reason-chip.reason-group { border-width: 2.5px; } /* ชนกลุ่มเรียน: ขอบทึบหนากว่าชนครู/ห้อง */
+.reason-chip.reason-hours, .reason-chip.reason-level { color: var(--st-warn-fg); border-style: dashed; }
+.reason-chip.reason-lunch, .reason-chip.reason-dup, .reason-chip.reason-invalid { color: #334155; border-style: dotted; }
+@media print { .reason-chip { color: #000; background: #fff; } }
+
+/* ---------- 11.10 สวิตช์ (ใช้ในโหมดเลือกหลายช่อง + หน้าตั้งค่า) ----------
+   <label class="switch"><input type="checkbox" role="switch"><span class="switch-track"></span><span class="switch-label">…</span></label>
+   สถานะอ่านจากข้อความ "เปิด/ปิด" ในราง + ตำแหน่งปุ่มกลม ไม่พึ่งสีอย่างเดียว */
+.switch { display: inline-flex; align-items: center; gap: var(--sp-2); min-height: 44px; cursor: pointer; position: relative; }
+.switch input { position: absolute; opacity: 0; width: 64px; height: 100%; margin: 0; cursor: pointer; }
+.switch-track {
+  position: relative; flex: none; width: 64px; height: 32px; border-radius: 999px;
+  background: #fff; border: 2px solid #475569; color: #334155; font-size: .8rem; font-weight: 700;
+  display: flex; align-items: center; justify-content: flex-end; padding: 0 8px;
+}
+.switch-track::before { content: "ปิด"; }
+.switch-track::after { content: ""; position: absolute; left: 3px; top: 3px; width: 22px; height: 22px; border-radius: 50%; background: #475569; transition: left .15s ease; }
+.switch input:checked + .switch-track { background: var(--c-primary); border-color: var(--c-primary-hover); color: #fff; justify-content: flex-start; }
+.switch input:checked + .switch-track::before { content: "เปิด"; }
+.switch input:checked + .switch-track::after { left: 35px; background: #fff; }
+.switch input:focus-visible + .switch-track { outline: 3px solid var(--c-focus); outline-offset: 2px; }
+.switch input:disabled + .switch-track { opacity: .6; cursor: not-allowed; }
+.switch-label { font-weight: 600; }
+
+/* ---------- 11.11 list-kit (ค้นหา/ตัวกรอง/แบ่งหน้า) ---------- */
+.list-kit-bar { display: flex; flex-wrap: wrap; align-items: flex-end; gap: var(--sp-2) var(--sp-3); margin-bottom: var(--sp-3); }
+.search-box { position: relative; flex: 1 1 260px; max-width: 420px; }
+.search-box .input { width: 100%; min-height: 44px; padding-right: 44px; }
+.search-clear {
+  position: absolute; right: 2px; top: 2px; width: 40px; height: 40px; border: 0; background: none; cursor: pointer;
+  font-size: 1.2rem; color: var(--c-muted); border-radius: var(--radius-sm);
+}
+.search-clear:hover { background: #eef2f7; }
+.list-filters { display: flex; flex-wrap: wrap; gap: var(--sp-2) var(--sp-3); align-items: flex-end; }
+.list-filters .select { min-height: 44px; }
+.list-count { color: var(--c-muted); font-size: .9rem; margin-left: auto; align-self: center; }
+.pager { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--sp-2) var(--sp-4); margin-top: var(--sp-3); }
+.pager-info { color: var(--c-muted); font-size: .9rem; }
+.pager-btns { display: flex; flex-wrap: wrap; gap: var(--sp-1); }
+.pager-btns .btn { min-width: 44px; min-height: 44px; padding: var(--sp-1) var(--sp-3); }
+.pager-btns .btn[aria-current="page"] { background: var(--c-primary); color: #fff; border-color: var(--c-primary); text-decoration: underline; }
+.pager-gap { display: inline-flex; align-items: center; min-width: 24px; justify-content: center; color: var(--c-muted); }
+.list-kit-body { min-width: 0; }
+.page-size { display: inline-flex; align-items: center; gap: var(--sp-2); }
+.page-size .select { min-height: 44px; }
+.list-empty { padding: var(--sp-5); text-align: center; color: var(--c-muted); background: var(--c-surface); border: 2px dashed var(--c-border-strong); border-radius: var(--radius); }
+
+/* ---------- 11.12 หน้าสาธารณะ ---------- */
+.public-page { max-width: 1400px; margin: 0 auto; }
+.public-intro { margin-bottom: var(--sp-3); color: var(--c-muted); }
+.public-bar { display: flex; flex-wrap: wrap; align-items: flex-end; gap: var(--sp-3); margin-bottom: var(--sp-4); }
+.public-bar .chip span { min-height: 44px; }
+.public-title { display: flex; align-items: baseline; gap: var(--sp-3); flex-wrap: wrap; margin-bottom: var(--sp-2); }
+.public-title h2 { margin: 0; }
+.public-footer { margin-top: var(--sp-5); padding-top: var(--sp-3); border-top: 1px solid var(--c-border); font-size: .9rem; color: var(--c-muted); display: flex; justify-content: space-between; flex-wrap: wrap; gap: var(--sp-2); }
+.public-disabled { max-width: 560px; margin: var(--sp-6) auto; text-align: center; }
+.link-muted { color: var(--c-muted); }
+
+/* ---------- 11.13 หน้าตั้งค่า ---------- */
+.settings-list { display: grid; gap: var(--sp-3); }
+.setting-row { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--sp-4); padding: var(--sp-4); background: var(--c-surface); border: 1px solid var(--c-border); border-radius: var(--radius); }
+.setting-row.is-on { border-left: 6px solid var(--c-primary); }
+.setting-text { flex: 1; min-width: 0; }
+.setting-title { font-weight: 700; font-size: 1.05rem; margin: 0 0 var(--sp-1); }
+.setting-desc { margin: 0 0 var(--sp-2); color: var(--c-muted); font-size: .92rem; }
+.pdpa-note { margin-top: var(--sp-2); }
+/* V5-01: ยังไม่ยืนยันการตั้งค่าซ่อนชื่อครู (ค่า null = ถือว่าซ่อน) — แบนเนอร์เหลืองหนา + ป้าย */
+.unconfirmed-banner { border-left-width: 8px; font-weight: 600; }
+.unconfirmed-banner::before { content: "⚠ "; }
+.badge-unconfirmed { background: var(--st-warn-bg); color: var(--st-warn-fg); border: 1px dashed var(--st-warn-bd); }
+.badge-hidden-teachers { background: var(--st-ok-bg); color: var(--st-ok-fg); }
+.badge-hidden-teachers::before { content: "🔒 "; }
+.setting-meta { font-size: .85rem; color: var(--c-muted); }
+
+/* ทัช/แท็บเล็ต: ปุ่มเล็กขยายเป็น ≥40px */
+@media (pointer: coarse) {
+  .btn-sm { min-height: 40px; padding: var(--sp-2) var(--sp-3); }
+  .nav-link { padding-top: var(--sp-3); padding-bottom: var(--sp-3); }
+  .modal-close { min-width: 44px; min-height: 44px; }
+}
+
+/* พื้นที่พิมพ์หลายรายการ: ซ่อนบนจอ แสดงเฉพาะตอนพิมพ์ (ดู @media print ท้ายไฟล์) */
+.print-area { display: none; }
+#legacy-bar:empty { display: none; }
+
+/* ---------- 12. หน้าห้องเรียน (สถานที่) ---------- */
+.view-meta { display: flex; gap: var(--sp-4); flex-wrap: wrap; color: var(--c-muted); font-size: .9rem; }
+.col-num { text-align: center; width: 90px; }
+
+/* ---------- 13. Print (ตารางรายกลุ่มเรียน/รายครู/รายห้องเรียน — A4 แนวนอน) ---------- */
+@page { size: A4 landscape; margin: 8mm; }
+@media print {
+  body { background: #fff; min-width: 0; font-size: 12px; }
+  .nav, .toolbar, .app-header, .btn, .toast-area, .legend, .alert-info,
+  .subject-panel, .panel-toggle, .panel-backdrop, .placing-bar, .conn-status, .legacy-bar, .export-box, .viewer-banner { display: none !important; }
+  .schedule-layout { display: block; }
+  .main { padding: 0; max-width: none; }
+  .card { box-shadow: none; border: 0; padding: 0; }
+  .tt-wrap { overflow: visible; border: 0; }
+  .timetable { min-width: 0; width: 100%; border-spacing: 2px; }
+  .timetable tbody th { position: static; }
+  .tt-cell { height: auto; min-height: 56px; font-size: 10.5px; break-inside: avoid; }
+  .tt-cell, .tt-lunch, .timetable th { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .tt-cell.is-free { border-style: solid; border-color: #cbd5e1; }
+  .tt-period-time { font-size: 9px; }
+  /* ส่งออก/พิมพ์หลายรายการ: แสดงเฉพาะ .print-area แต่ละ .print-sheet ขึ้นหน้าใหม่ A4 แนวนอน */
+  .print-area { display: block; }
+  .main:has(.print-area .print-sheet) > :not(.print-area) { display: none !important; }
+  .print-sheet { break-after: page; page-break-after: always; break-inside: avoid; }
+  .print-sheet:last-child { break-after: auto; page-break-after: auto; }
+  .print-sheet h2 { font-size: 16px; margin: 0 0 2px; }
+  .print-sheet p { font-size: 11px; margin: 0 0 6px; color: #334155; }
+
+  /* SPEC v5 ข้อ 18: 1 รายการ = 1 หน้า A4 แนวนอน ตารางเต็มหน้า (พื้นที่ใช้งาน ≈ 281×194 mm) */
+  .print-sheet { display: flex; flex-direction: column; height: 188mm; overflow: hidden; }
+  .print-sheet .tt-wrap { flex: 1 1 auto; display: flex; flex-direction: column; min-height: 0; }
+  .print-sheet .timetable { height: 100%; }
+  .timetable, .timetable td, .timetable th { overflow-wrap: anywhere; }
+  .tt-fs-1, .tt-fit-1 { font-size: 10.5px; } .tt-fs-2, .tt-fit-2 { font-size: 9.5px; } .tt-fs-3, .tt-fit-3 { font-size: 8.5px; } .tt-fs-4, .tt-fit-4 { font-size: 8px; }
+
+  /* ขาวดำ: ใช้ระดับเทาที่ต่างกัน + ลาย + ตัวหนา + สัญลักษณ์ (ส/ช/ร) ตัวอักษรดำล้วน */
+  .tt-cell, .tt-cell * { color: #000 !important; }
+  .tt-cell.is-free { background: #fff; }
+  .tt-cell.type-general:not(.is-shared), .tt-cell.is-filled:not(.type-vocational):not(.is-shared):not(.is-conflict) { background-color: #ececec; border: 1px solid #000; }
+  .tt-cell.type-vocational {
+    background-color: #b8b8b8; border: 1px solid #000; font-weight: 700;
+    background-image: repeating-linear-gradient(135deg, rgba(0, 0, 0, .28) 0 1.5px, transparent 1.5px 6px);
+  }
+  .tt-cell.is-shared { background-color: #ececec; border: 4px double #000; }
+  .tt-cell.is-conflict, .tt-cell.is-level-mismatch, .tt-cell.is-warning { background: #fff; border: 2px solid #000; }
+  .tt-lunch, .timetable th.tt-lunch-head { background-color: #d0d0d0; border: 1px solid #000; color: #000; }
+  td.tt-lunch { background-image: repeating-linear-gradient(45deg, rgba(0, 0, 0, .35) 0 1px, transparent 1px 4px); }
+  .tt-mark-vocational { background: #000 !important; color: #fff !important; }
+  .tt-mark-general, .tt-mark-shared { border-color: #000; }
+  .timetable th { background: #e0e0e0; color: #000; }
+  .tt-cell-badge { border-color: #000; background: #fff; }
+  .tt-fulltext { columns: 3; font-size: 9px; color: #000; }
+  .list-kit-bar, .pager, .multi-bar, .public-bar, .public-footer { display: none !important; }
+}
