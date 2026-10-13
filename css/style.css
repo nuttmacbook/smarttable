@@ -691,6 +691,13 @@ td.tt-lunch { background-image: repeating-linear-gradient(45deg, rgba(51, 65, 85
 .multi-bar.is-on { background: var(--c-primary-soft); border: 2px solid var(--c-primary); }
 .multi-bar.is-remove { background: var(--st-conflict-bg); border: 2px dashed var(--st-conflict-bd); }
 .multi-count { font-weight: 700; min-width: 7em; }
+/* ตัวนับชั่วโมง "เลือกแล้ว k/N ชม." ข้าง .multi-count · เต็มแล้ว (.is-full) = ขอบทึบหนา + ตัวหนา + ✓ นำหน้า ไม่พึ่งสี */
+.multi-quota {
+  display: inline-block; padding: 0 var(--sp-2); border: 1px solid var(--c-border-btn); border-radius: 999px;
+  background: var(--c-surface); color: var(--c-text-2); font-size: var(--fs-sm); font-weight: 600; white-space: nowrap;
+}
+.multi-quota.is-full { border: 2px solid var(--st-ok-bd); background: var(--st-ok-bg); color: var(--st-ok-fg); font-weight: 700; }
+.multi-quota.is-full::before { content: "✓ "; }
 .multi-actions { display: flex; flex-wrap: wrap; gap: var(--sp-2); margin-left: auto; }
 .multi-actions .btn { min-height: 44px; }
 .multi-mode-label { font-weight: 700; }

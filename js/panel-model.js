@@ -55,7 +55,20 @@ export const STATUS_TEXT = {
 const BLOCK_LABEL = { teacher: 'ชนครู', classroom: 'ชนห้อง', hours: 'ชั่วโมงเต็ม', level: 'ระดับไม่ตรง', lunch: 'พักเที่ยง', invalid: 'ลงไม่ได้', group: 'มีวิชาแล้ว' };
 export const blockLabel = (type) => BLOCK_LABEL[type] ?? 'ลงไม่ได้';
 
-export function blockedCells(state, { groupId, subjectId, teacherId, roomId } = {}) {
+// โควตาชั่วโมงของ (กลุ่ม+วิชา) ในโหมดเลือกหลายช่อง : ใช้นิยามเดียวกับกฎ hours ของ scheduler (ชั่วโมงต่อสัปดาห์ − คาบที่จัดแล้วของกลุ่มนี้ ; hours ไม่ใช่เลขบวก = ไม่จำกัด)
+// available = ที่ยังเลือกเพิ่มในชุดได้ทั้งหมด (ไม่ติดลบ แม้ข้อมูลเดิมเกินอยู่แล้ว) ; remaining = available − จำนวนที่เลือกค้าง
+export function remainingQuota(state, { groupId, subjectId, picked = 0 } = {}) {
+  const group = (state.groups || []).find((g) => g.id === groupId);
+  const subject = (state.subjects || []).find((s) => s.id === subjectId);
+  if (!group || !subject) return { unlimited: true, need: 0, used: 0, picked, available: Infinity, remaining: Infinity };
+  const p = subjectProgress(state, group, subject);
+  const hours = Number(subject.hours);
+  if (!Number.isFinite(hours) || hours <= 0) return { unlimited: true, need: 0, used: p.used, picked, available: Infinity, remaining: Infinity };
+  const available = Math.max(0, hours - p.used);
+  return { unlimited: false, need: hours, used: p.used, picked, available, remaining: Math.max(0, available - picked) };
+}
+
+export function blockedCells(state, { groupId, subjectId, teacherId, roomId, picked } = {}) {
   const out = new Map();
   const subject = (state.subjects || []).find((s) => s.id === subjectId);
   const group = (state.groups || []).find((g) => g.id === groupId);
@@ -63,6 +76,9 @@ export function blockedCells(state, { groupId, subjectId, teacherId, roomId } = 
   const tids = Array.isArray(subject.teacherIds) ? subject.teacherIds : [];
   const occupied = new Set();
   for (const e of state.entries || []) if (e.groupId === groupId) occupied.add(`${e.day}:${e.period}`);
+  // เลือกค้างในชุดจนโควตาเต็ม → ช่องว่างอื่นที่ยังไม่ได้เลือกลงไม่ได้ (ชั่วโมงเต็ม) ทันที
+  const q = picked && picked.size ? remainingQuota(state, { groupId, subjectId, picked: picked.size }) : null;
+  const exhausted = Boolean(q && !q.unlimited && q.remaining <= 0);
   for (let day = 1; day <= 5; day += 1) {
     for (let period = 1; period <= 11; period += 1) {
       const key = `${day}:${period}`;
@@ -71,6 +87,7 @@ export function blockedCells(state, { groupId, subjectId, teacherId, roomId } = 
       const types = checkPlacement(state, { ...base, ...(teacherId ? { teacherId } : {}) }).conflicts.map((c) => c.type);
       if (!teacherId && tids.length >= 2 && !types.includes('teacher')
         && tids.every((tid) => checkPlacement(state, { ...base, teacherId: tid }).conflicts.some((c) => c.type === 'teacher'))) types.push('teacher');
+      if (exhausted && !picked.has(key) && !types.includes('hours')) types.push('hours');
       if (!types.length) continue;
       const uniq = [...new Set(types)];
       out.set(key, { types: uniq, reason: uniq.slice(0, 2).map(blockLabel).join(' · ') });
@@ -82,7 +99,7 @@ export function blockedCells(state, { groupId, subjectId, teacherId, roomId } = 
 // คำนวณครั้งเดียวต่อการเปลี่ยนตัวเลือก: จำผลล่าสุดตาม (state เดิม, กลุ่ม, วิชา, ครู, ห้อง) — state ใหม่หลัง op/โหลดใหม่ = คำนวณใหม่
 let blockedMemo = null;
 export function cachedBlockedCells(state, sel) {
-  const k = [sel.groupId, sel.subjectId, sel.teacherId || '', sel.roomId || ''].join('\u0000');
+  const k = [sel.groupId, sel.subjectId, sel.teacherId || '', sel.roomId || '', sel.picked && sel.picked.size ? [...sel.picked].sort().join(',') : ''].join('\u0000');
   if (blockedMemo && blockedMemo.state === state && blockedMemo.k === k) return blockedMemo.map;
   const map = blockedCells(state, sel);
   blockedMemo = { state, k, map };

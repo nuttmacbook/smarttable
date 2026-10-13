@@ -4,8 +4,9 @@
 // ข้อจำกัด: บนทัชตั้ง touch-action: pan-y จึงลากแนวนอน (ข้ามคาบ) ได้ แต่ลากแนวตั้งข้ามวันจะเลื่อนหน้า → ใช้ปุ่มช่วงแทน · ยังไม่ได้ทดสอบกับเบราว์เซอร์/ทัชจริง
 import { dayName, periodLabel } from '../constants.js';
 import {
-  createSelection, toggleCell, applyRange, beginDrag, dragTo, partitionSelection, cellKey, MAX_SELECTION,
+  createSelection, toggleCell, applyRange, beginDrag, dragTo, partitionSelection, cellKey, limitSelection, MAX_SELECTION,
 } from '../selection-model.js';
+import { remainingQuota, cachedBlockedCells } from '../panel-model.js';
 import { ctx, esc, byId, toast, openModal, gridHtml, errorListHtml, opFailureTitle, subjectTeacherIds } from './util.js';
 import { searchSelect } from './list-kit.js';
 import {
@@ -68,11 +69,70 @@ export function mountMulti(opts) {
   const usable = (day, period) => (m.kind === 'remove' ? hasEntryAt(state, group.id, day, period) : !hasEntryAt(state, group.id, day, period));
   const keysOf = () => [...m.sel.keys];
 
-  // ตัดช่องที่เลือกไม่ได้ในโหมดปัจจุบันออก (ข้ามเงียบ แต่นับไว้แสดงในแถบสถานะ)
+  // โควตาชั่วโมงของวิชาที่เลือก (โหมดลงเท่านั้น) : available = ที่ยังเลือกเพิ่มได้ทั้งชุด (Infinity = ไม่จำกัด/ยังไม่เลือกวิชา)
+  const quotaOf = (pickedCount = m.sel.keys.size) => {
+    const subject = m.kind === 'place' ? subjectRow()?.subject : null;
+    return subject ? remainingQuota(state, { groupId: group.id, subjectId: subject.id, picked: pickedCount }) : null;
+  };
+  const fullMsg = (q) => `ชั่วโมงเต็มแล้ว: วิชานี้เหลือ 0 ชม. (ต้องเรียน ${q.need} จัดแล้ว ${q.used} เลือกแล้ว ${q.picked})`;
+  // ช่องที่ลงวิชานี้ไม่ได้ (ชนครู/ห้อง/ระดับ/พักเที่ยง ฯลฯ ตามตัวตรวจกลางของ scheduler ผ่าน blockedCells) — ไม่นับ 'ชั่วโมงเต็ม' อย่างเดียว (ให้ขั้นโควตาจัดการและแจ้งข้อความของมันเอง)
+  const blockedNow = () => {
+    const row = m.kind === 'place' ? subjectRow() : null;
+    return row ? cachedBlockedCells(state, { groupId: group.id, subjectId: row.subject.id, teacherId: m.teacherId, roomId: m.roomId }) : null;
+  };
+  const hardBlocked = (map, key) => {
+    const bl = map?.get(key);
+    return bl && !(bl.types.length === 1 && bl.types[0] === 'hours') ? bl : null;
+  };
+
+  // ผลการเลือกหลังตัดช่องที่ลงไม่ได้ (เฉพาะช่องใหม่ ช่องที่เลือกไว้แล้วอยู่ต่อ/เอาออกได้เสมอ) และจำกัดตามโควตา — ใช้ทั้งพรีวิวตอนลากและตอนยืนยัน ไม่แตะ state
+  function limited(nextKeys) {
+    const { usable: ok } = partitionSelection(nextKeys, usable);
+    const map = blockedNow();
+    const skippedBlocked = [];
+    const allowed = ok.filter((k) => {
+      if (m.sel.keys.has(k)) return true;
+      const bl = hardBlocked(map, k);
+      if (bl) { skippedBlocked.push({ key: k, reason: bl.reason }); return false; }
+      return true;
+    });
+    const q = quotaOf(0);
+    const { keys, cut } = limitSelection(m.sel.keys, allowed, q ? q.available : Infinity);
+    return { keys, cut, q, skippedBlocked };
+  }
+
+  // ตัดช่องที่เลือกไม่ได้ในโหมดปัจจุบันออก (ข้ามเงียบ แต่นับไว้แสดงในแถบสถานะ) ข้ามช่องที่ลงไม่ได้ แล้วจำกัดตามโควตาชั่วโมง — แจ้งทันที
   function setSel(next) {
-    const { usable: ok, skipped } = partitionSelection(next.keys, usable);
+    const { skipped } = partitionSelection(next.keys, usable);
     m.skipped += skipped.length;
-    m.sel = { keys: new Set(ok), anchor: next.anchor };
+    const { keys, cut, q, skippedBlocked } = limited(next.keys);
+    const before = m.sel.keys.size;
+    m.sel = { keys, anchor: next.anchor };
+    if (!skippedBlocked.length && !cut) return;
+    const single = keys.size === before && next.keys.size === before + 1;
+    if (single) {
+      // คลิกเพิ่มช่องเดียวที่ไม่เข้าชุด : บอกเหตุผลของช่องนั้น
+      toast(skippedBlocked.length ? `ลงไม่ได้: ${skippedBlocked[0].reason}` : fullMsg({ ...q, picked: keys.size }), 'error');
+      return;
+    }
+    const parts = [];
+    if (skippedBlocked.length) parts.push(`ข้ามช่องที่ลงไม่ได้ ${skippedBlocked.length} ช่อง`);
+    if (cut && q) parts.push(`ตัดส่วนที่เกิน ${cut} ช่อง — วิชานี้เหลือ ${q.available} ชม. (ต้องเรียน ${q.need} จัดแล้ว ${q.used})`);
+    toast(parts.join(' · '), 'error');
+  }
+  // เปลี่ยนวิชา/ครู/ห้อง/โหลดข้อมูลใหม่ระหว่างมีช่องค้าง : ตัดช่องที่ลงวิชาใหม่ไม่ได้และส่วนที่เกินโควตา แล้วแจ้ง
+  function reconcile() {
+    if (!m.on || m.kind !== 'place' || !m.sel.keys.size) return;
+    const map = blockedNow();
+    const kept = [...m.sel.keys].filter((k) => !hardBlocked(map, k));
+    const dropped = m.sel.keys.size - kept.length;
+    let keys = new Set(kept);
+    let cut = 0;
+    const q = quotaOf(0);
+    if (q && q.available < keys.size) ({ keys, cut } = limitSelection(new Set(), keys, q.available));
+    if (!dropped && !cut) return;
+    m.sel = { keys, anchor: m.sel.anchor };
+    toast(`ปรับชุดที่เลือกตามโควตาและเงื่อนไขของวิชานี้: ตัดช่องที่ลงไม่ได้ ${dropped} ช่อง${cut ? ` · ตัดส่วนเกินโควตา ${cut} ช่อง` : ''}`, 'error');
   }
 
   function cellDecorated(day, period) {
@@ -103,6 +163,14 @@ export function mountMulti(opts) {
         });
       });
     }
+  }
+
+  // ตัวนับโควตา 'เลือกแล้ว k/N ชม.' (เฉพาะโหมดลงที่เลือกวิชาและวิชามีจำกัดชั่วโมง)
+  function quotaBadge() {
+    const q = quotaOf();
+    if (!q || q.unlimited) return '';
+    const full = q.remaining <= 0;
+    return `<span class="multi-quota${full ? ' is-full' : ''}">เลือกแล้ว ${q.picked}/${q.available} ชม.${full ? ' · ชั่วโมงเต็ม' : ''}</span>`;
   }
 
   let barSelects = [];
@@ -152,9 +220,10 @@ export function mountMulti(opts) {
       : `<button type="button" class="btn btn-primary" data-multi-action="place"${n && row ? '' : ' disabled'}>ลงตาราง (${n} ช่อง)</button>`;
     return `<div class="multi-bar is-on${m.kind === 'remove' ? ' is-remove' : ''}">
       ${sw}${kindChips}${setup}
+      ${quotaBadge()}
       <span class="multi-count" role="status">เลือก ${n} ช่อง${m.skipped ? ` (ข้ามช่องที่เลือกไม่ได้ ${m.skipped})` : ''}${n > MAX_SELECTION ? ` — เกิน ${MAX_SELECTION} ช่อง` : ''}</span>
       ${range}
-      ${m.kind === 'place' ? '<span class="field-hint multi-red-note">ช่องสีแดงตรวจทีละช่อง — ชั่วโมงรวมของช่องที่เลือกพร้อมกันจะตรวจอีกครั้งตอนกด "ลงตาราง" (ตรวจล่วงหน้า)</span>' : ''}
+      ${m.kind === 'place' ? '<span class="field-hint multi-red-note">ชั่วโมงเต็มแล้วช่องที่เหลือจะแดงทันที · ชนครู/ห้องตรวจทีละช่อง และตรวจรวมอีกครั้งตอนกด "ลงตาราง" (ตรวจล่วงหน้า)</span>' : ''}
       <div class="multi-actions">${act}
         <button type="button" class="btn" data-multi-action="clear"${n ? '' : ' disabled'}>ล้างการเลือก</button>
         <button type="button" class="btn" data-multi-action="off">ยกเลิกโหมด</button></div>
@@ -278,7 +347,7 @@ export function mountMulti(opts) {
     if (!k || k === drag.last) return;
     drag.last = k;
     drag.moved = true;
-    m.preview = dragTo(drag, k).keys;
+    m.preview = limited(dragTo(drag, k).keys).keys;
     paintGrid();
   };
   const endDrag = (commit) => {
@@ -309,7 +378,7 @@ export function mountMulti(opts) {
     window.addEventListener('pointermove', onMove);
     window.addEventListener('pointerup', onUp);
     window.addEventListener('pointercancel', onCancel);
-    m.preview = dragTo(drag, key).keys;
+    m.preview = limited(dragTo(drag, key).keys).keys;
     paintGrid();
   });
   gridBox.addEventListener('keydown', (e) => {
@@ -330,6 +399,7 @@ export function mountMulti(opts) {
   };
   document.addEventListener('keydown', escHandler);
 
+  reconcile();
   paintAll();
   return { paintAll, state: m };
 }

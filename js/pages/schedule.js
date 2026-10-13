@@ -91,7 +91,7 @@ export function renderSchedule(root) {
   const blockedMap = () => {
     const mm = getMulti();
     if (!ui.placingSubjectId || moving || (mm.on && mm.kind === 'remove')) return null;
-    return cachedBlockedCells(state, { groupId: group.id, subjectId: ui.placingSubjectId, teacherId: mm.on ? mm.teacherId : '', roomId: mm.on ? mm.roomId : '' });
+    return cachedBlockedCells(state, { groupId: group.id, subjectId: ui.placingSubjectId, teacherId: mm.on ? mm.teacherId : '', roomId: mm.on ? mm.roomId : '', picked: mm.on && mm.kind === 'place' ? mm.sel.keys : undefined });
   };
   const cell = (day, period) => {
     const e = groupEntries.find((x) => x.day === day && x.period === period);

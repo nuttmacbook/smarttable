@@ -94,3 +94,19 @@ export function partitionSelection(keys, canUse) {
 }
 
 export const overLimit = (count) => count > MAX_SELECTION;
+
+// จำกัดจำนวนช่องที่เลือกตามโควตา (ชั่วโมงที่ยังเหลือ) : available = Infinity ไม่จำกัด
+// ช่องที่เลือกไว้เดิม (อยู่ใน prev และยังอยู่ใน next) คงไว้ก่อน ช่องใหม่เรียง วัน→คาบ เก็บเท่าที่ยังเหลือ ส่วนเกินตัดทิ้ง
+// คืน { keys:Set, cut:จำนวนที่ตัด } — pure
+export function limitSelection(prevKeys, nextKeys, available) {
+  const next = new Set(nextKeys);
+  if (!Number.isFinite(available)) return { keys: next, cut: 0 };
+  const cap = Math.max(0, Math.floor(available));
+  const kept = [...next].filter((k) => prevKeys.has(k));
+  const fresh = sortedKeys([...next].filter((k) => !prevKeys.has(k)));
+  const keepOld = sortedKeys(kept).slice(0, cap);
+  const room = Math.max(0, cap - keepOld.length);
+  const keepNew = fresh.slice(0, room);
+  const keys = new Set([...keepOld, ...keepNew]);
+  return { keys, cut: next.size - keys.size };
+}
