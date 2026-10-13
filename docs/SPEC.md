@@ -12,7 +12,7 @@
 
 ## 1. ศัพท์ (ห้ามปนกัน)
 - **กลุ่มเรียน** (`groups`) = กลุ่มนักเรียน เช่น ปวช.1/1 · **ห้องเรียน** (`rooms`) = สถานที่เรียน เช่น 411 · ในข้อมูล `entry.groupId` = กลุ่มเรียน, `entry.roomId` = ห้องเรียน (ไม่บังคับ)
-- **ระดับ** (`LEVELS`) = `ปวช.1`, `ปวช.2`, `ปวช.3` (หลัก), `ปวส.1`, `ปวส.2` (คงไว้ให้ข้อมูลเดิมแปลงได้) · **แผนการเรียน** (`plans`) = ชุดวิชาของระดับหนึ่ง
+- **ระดับ** (`state.levels`) = รายการที่แอดมินเพิ่ม/แก้ชื่อ/ลบ/เรียงลำดับได้ (หน้า "ระดับ") ค่าเริ่มต้น `DEFAULT_LEVELS` = `ปวช.1`–`ปวช.3`, `ปวส.1`–`ปวส.2` · ชื่อ trim แล้ว 1–20 ตัวอักษร ไม่ซ้ำ (ไม่สนตัวพิมพ์/ช่องว่างซ้ำ) ไม่มีอักขระควบคุมและไม่มี `,` `，` ได้ไม่เกิน 30 ระดับ · ลบระดับที่ยังมีวิชา/กลุ่ม/แผนใช้อยู่ไม่ได้ (op ตอบ `in_use` พร้อมจำนวน) · **แผนการเรียน** (`plans`) = ชุดวิชาของระดับหนึ่ง
 - **ครูที่มีผล** ของคาบ = `entry.teacherId` ถ้ามี ไม่งั้นครูคนเดียวของวิชา ไม่งั้นไม่มี (`effectiveTeacherId`)
 - **เรียนรวม** = วิชาสามัญ id เดียวกันหลายกลุ่มเรียนลงคาบเดียวกัน (`canMerge`) · วิชาชีพเฉพาะเรียนรวมไม่ได้
 
@@ -21,9 +21,10 @@
 - พักเที่ยง 12:00–13:00 ไม่ใช่คาบ (ค่าคงที่ `LUNCH`, รหัส `'lunch'`) แสดงเป็นคอลัมน์คั่นระหว่างคาบ 4 กับ 5 ลงวิชาไม่ได้
 - ผังทุกมุมมองและทุกไฟล์พิมพ์/ส่งออก: **คอลัมน์ = คาบ (รวมคอลัมน์พักเที่ยง) แถว = วัน** หัวคอลัมน์มีเลขคาบ + เวลา
 
-## 3. โมเดลข้อมูล (version 4)
+## 3. โมเดลข้อมูล (version 5)
 ```
-state = { version: 4,
+state = { version: 5,
+  levels:   [ชื่อระดับ, ...],                                       // เรียงลำดับ ไม่ซ้ำ
   subjects: [{ id, code, name, type:'general'|'vocational', credits, hours, theory?, practice?, teacherIds:[...0..n], levels:[...≥1], note }],
   teachers: [{ id, name, dept }],
   groups:   [{ id, name, level, major, subjectIds:[...], planId|null }],
@@ -34,13 +35,14 @@ state = { version: 4,
 - `hours` = ท+ป (จำนวนเต็มบวก) = ชั่วโมงที่ต้องเรียนต่อสัปดาห์ต่อกลุ่มเรียน · `teacherIds` ไม่ซ้ำและต้องมีครูจริง · `entry.teacherId` (ถ้ามี) ต้องอยู่ใน `subject.teacherIds`
 - id: `[A-Za-z0-9_-]{1,64}` และห้ามเป็นชื่อสงวนของ `Object.prototype` (`__proto__`, `constructor`, `prototype`, `toString`, `valueOf`, `hasOwnProperty` ฯลฯ — `validateId`) · ในโค้ดห้ามใช้ object ธรรมดาเป็นดัชนีด้วย id/ชื่อ (ใช้ `Map` / `Object.create(null)` + `Object.hasOwn`)
 - ข้อความ (`sanitizeText`/`textIssues`): ไม่มีอักขระควบคุม/กำกับทิศทาง/zero-width, NFC; ชื่อ/รหัส ≤200 ตัวอักษร, `note`/`dept`/`major`/`building` ≤500
-- `parseState` ตรวจโครงสร้างและอ้างอิง (id ซ้ำ, ระดับใน `LEVELS`, `levels` ไม่ว่าง, รหัสวิชาไม่ซ้ำ, ชื่อห้อง/แผนไม่ซ้ำ, `subjectIds`/`planId`/`roomId`/`teacherId` อ้างของที่มีจริง) · ไม่ตรวจชน/ชั่วโมง (ผู้เรียกใช้ `validateAll`) เพื่อให้ข้อมูลเดิมที่ผิดกฎโหลดได้
+- `parseState` ตรวจโครงสร้างและอ้างอิง (id ซ้ำ, วิชา/กลุ่ม/แผนต้องอ้างระดับที่มีใน `state.levels` (วิชามี `levels` ≥1), รูปแบบชื่อระดับ, รหัสวิชาไม่ซ้ำ, ชื่อห้อง/แผนไม่ซ้ำ, `subjectIds`/`planId`/`roomId`/`teacherId` อ้างของที่มีจริง) · ไม่ตรวจชน/ชั่วโมง (ผู้เรียกใช้ `validateAll`) เพื่อให้ข้อมูลเดิมที่ผิดกฎโหลดได้
 
-### 3.1 Migration (`migrateState` — idempotent ต่อโซ่ v1→v2→v3→v4)
-- ใช้กับการนำเข้าไฟล์ JSON (`importJSON`, op `state.import`) และ `/api/migrate` · ไฟล์ที่ไม่มี `version` = v1 · version อื่นนอก 1–4 ถูกปฏิเสธ
+### 3.1 Migration (`migrateState` — idempotent ต่อโซ่ v1→v2→v3→v4→v5)
+- ใช้กับการนำเข้าไฟล์ JSON (`importJSON`, op `state.import`) และ `/api/migrate` · ไฟล์ที่ไม่มี `version` = v1 · version อื่นนอก 1–5 ถูกปฏิเสธ
 - **v1→v2:** `rooms`(เดิม)→`groups` (id เดิมคงไว้); `level` เดิม `'ปวช.'|'ปวส.'` + `year` → ระดับใหม่ เช่น `'ปวช.'+1` → `'ปวช.1'` (ปีไม่มี/นอกช่วง → 1; ปวส. สูงสุด 2, ปวช. สูงสุด 3); `entry.roomId`→`groupId` และเพิ่ม `roomId:null`; `rooms` ใหม่ = `[]`; `subject.levels` = ชุดระดับของกลุ่มที่เคยมีคาบของวิชานั้น (ไม่มี = ทุกระดับ เพื่อไม่ให้ข้อมูลเก่าชนโดยไม่ตั้งใจ)
 - **v2→v3:** `subject.teacherId` → `teacherIds` (`teacherId ? [teacherId] : []`, ลบ field เดิม); `entry.teacherId` = ครูคนเดียวของวิชาเดิม | null
 - **v3→v4:** `plans = []`; `group.subjectIds` = วิชาที่กลุ่มนั้นมีคาบอยู่ (เรียงตามรหัสวิชา); `group.planId = null`
+- **v4→v5:** `levels` = `DEFAULT_LEVELS` + ระดับที่มีใช้อยู่นอกค่าเริ่มต้น (ตามลำดับที่พบ) · ชื่อระดับผิดรูปในข้อมูลเดิม (มี `,`, ยาวเกิน 20, อักขระควบคุม, ว่าง/ไม่ใช่ข้อความ) ถูกซ่อมเป็นชื่อที่ถูกต้องแล้วเขียนอ้างอิงใหม่ให้ตรงกันทั้งหมด (`canonicalizeLevels`; ชนชื่ออื่น → ต่อท้าย " 2", " 3") · เซิร์ฟเวอร์เก็บใน key `tt:levels`
 - ผลลัพธ์ต้องผ่าน `validateAll` ถ้าข้อมูลเดิมไม่ชน
 
 ### 3.2 ค่าตั้งนอก state
@@ -139,8 +141,8 @@ state = { version: 4,
 - **`POST /api/op {op, baseVersion}`:** โหลด state → `applyOp` (โมดูลร่วม) → `validateAll` → เขียนด้วย Lua `EVAL` compare-and-set (`tt:v == baseVersion` → เขียนทุก key ที่เปลี่ยน + `INCR tt:v` ในสคริปต์เดียว; ไม่ตรง → 409 `{latestVersion}`) · ตอบ 200 `{version, changes, affected, warnings, …}` | 409 | 422 `{errors, items?}` · `dryRun` ระดับ body แปลงเป็นระดับ op ให้เป็นรูปเดียวกัน · ปฏิเสธ op ที่ไม่รู้จัก/โครงผิด/ขนาดเกิน (body ≤ 1 MB; import ≤ 4 MB)
 - **Redis keys:** `tt:v` (version), `tt:meta`, `tt:subjects`, `tt:teachers`, `tt:groups`, `tt:rooms`, `tt:plans`, `tt:entries:<groupId>` (shard ต่อกลุ่ม เลี่ยงเพดานคำขอ 1 MB), `tt:settings`, `tt:shares`, `share:<hash>`, `sess:*`, `rl:*`, `tt:snap:<version>`, `tt:audit`
 - **snapshot/audit:** ก่อน op ทำลายล้าง (`/api/migrate` แบบ `force`, `state.import` แบบ replace/trim) เก็บ `tt:snap:<version>` ล่าสุด 5 ชุด หมดอายุ 30 วัน ภายใน CAS เดียว ดาวน์โหลดได้ (แอดมิน) · audit `tt:audit` ≤500 รายการ (เวลา, username, ชนิด op, version, แฮช IP; ไม่เก็บ secret) · UI ยืนยันระบุจำนวนที่จะถูกลบ (`affected`/`trimmed`)
-- **`/api/migrate`:** รับ state v1–v4 → migrate + validate → เขียนเมื่อฐานข้อมูลว่าง (หรือ `force:true` ที่แอดมินยืนยัน หลังถ่าย snapshot) · รับเฉพาะชั่วโมงเกินเป็น legacy ความผิดอื่น (ชน/อ้างอิงขาด) = 422
-- **env ฝั่งเซิร์ฟเวอร์** (ห้ามขึ้นต้น `VITE_`): `UPSTASH_REDIS_REST_URL`, `UPSTASH_REDIS_REST_TOKEN`, `SESSION_SECRET` (≥32 ไบต์), `ADMIN_ACCOUNTS`, `ALLOWED_ORIGINS`; ไม่บังคับ `UPSTASH_REDIS_REST_READONLY_TOKEN` (เส้นทางผู้ดู), `PUBLIC_RATE_LIMIT` · ไม่มี secret ใน repo/bundle/log · build ล้มถ้าตั้งตัวแปร `VITE_*` ที่ชื่อเหมือนความลับ · แยก env Production กับ Preview (คนละฐานข้อมูล/บัญชีแอดมิน) และเปิด Deployment Protection ให้ Preview
+- **`/api/migrate`:** รับ state v1–v5 → migrate + validate → เขียนเมื่อฐานข้อมูลว่าง (หรือ `force:true` ที่แอดมินยืนยัน หลังถ่าย snapshot) · รับเฉพาะชั่วโมงเกินเป็น legacy ความผิดอื่น (ชน/อ้างอิงขาด) = 422
+- **env ฝั่งเซิร์ฟเวอร์** (ห้ามขึ้นต้น `VITE_`): `UPSTASH_REDIS_REST_URL`+`UPSTASH_REDIS_REST_TOKEN` (หรือชุด `KV_REST_API_URL`+`KV_REST_API_TOKEN` ที่ Vercel Upstash integration สร้างให้ — ใช้ทั้งคู่จากชุดเดียวกัน ไม่ผสมชุด; รายละเอียดที่ `DEPLOY.md` ข้อ 2.1), `SESSION_SECRET` (≥32 ไบต์), `ADMIN_ACCOUNTS`, `ALLOWED_ORIGINS`; ไม่บังคับ `UPSTASH_REDIS_REST_READONLY_TOKEN` (เส้นทางผู้ดู), `PUBLIC_RATE_LIMIT` · ไม่มี secret ใน repo/bundle/log · build ล้มถ้าตั้งตัวแปร `VITE_*` ที่ชื่อเหมือนความลับ · แยก env Production กับ Preview (คนละฐานข้อมูล/บัญชีแอดมิน) และเปิด Deployment Protection ให้ Preview
 - **Headers (`vercel.json`):** CSP `default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'` + `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: no-referrer`, `Permissions-Policy` ปิดของที่ไม่ใช้, HSTS · `Cache-Control: no-store` กับ `/api/*` ยกเว้น `/api/public` (`no-cache` + ETag) · region `sin1`, `maxDuration` 10 · rewrites ของ SPA ยกเว้น `/api/*`
 - ฟังก์ชันไม่ log secret · `Cache-Control`/header ตามข้างต้น
 

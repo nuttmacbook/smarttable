@@ -136,6 +136,7 @@ export function publicStateFor(state, { hide }) {
   const rooms = state.rooms.map((r) => (hide ? dropKeys(r, ['note']) : { ...r }));
   return {
     version: state.version,
+    ...(Array.isArray(state.levels) ? { levels: [...state.levels] } : {}), // รายชื่อระดับ (v5): ไม่ใช่ข้อมูลส่วนบุคคล ส่งเสมอ
     subjects,
     ...(hide ? {} : { teachers: state.teachers.map((t) => ({ ...t })) }),
     groups,

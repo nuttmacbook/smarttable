@@ -33,17 +33,35 @@ export async function renderSettings(root) {
   const showNames = pm.hideTeacherNames === false;
   box.innerHTML = `<div class="settings-list">
     ${row('set-enabled', pm.enabled === true, 'เปิดโหมดสาธารณะ', 'ผู้เข้าชมทั่วไป (นักเรียน/ครู) เปิดเว็บแล้วเห็นตารางได้ทันที ไม่ต้องเข้าสู่ระบบและไม่ต้องมีลิงก์ ปิดแล้วต้องใช้ลิงก์แชร์เท่านั้น มีผลทันที')}
-    ${row('set-show-names', showNames, 'แสดงชื่อครูในโหมดสาธารณะ', 'เมื่อปิด (ค่าเริ่มต้นเพื่อความปลอดภัย): ผู้ชมทั่วไปจะไม่เห็นรายชื่อครู ไม่มีมุมมองรายครู ช่องตารางไม่แสดงครู และส่งออกรายครูไม่ได้ · ชื่อครูเป็นข้อมูลส่วนบุคคล (PDPA) เปิดเมื่อได้รับอนุญาตเท่านั้น',
+    ${row('set-show-names', showNames, 'แสดงชื่อครูในโหมดสาธารณะ', 'เมื่อปิด (ค่าเริ่มต้น): ผู้ชมทั่วไปจะไม่เห็นรายชื่อครู ไม่มีมุมมองรายครู ช่องตารางไม่แสดงครู และส่งออกรายครูไม่ได้ · ชื่อครูเป็นข้อมูลส่วนบุคคล (PDPA) เปิดเมื่อได้รับอนุญาตเท่านั้น',
       '<div class="alert alert-warning pdpa-note">ระบบซ่อนชื่อครูที่มาจากข้อมูลครูให้เท่านั้น — ถ้ามีชื่อครูพิมพ์อยู่ในช่องหมายเหตุของวิชา/ห้อง/กลุ่ม ระบบลบให้ไม่ได้ กรุณาตรวจก่อนเปิดโหมดสาธารณะ</div>')}
   </div>
-  ${isUnconfirmed(settings) ? '<div class="alert alert-warning unconfirmed-banner"><span class="badge badge-unconfirmed">ยังไม่ยืนยัน</span> ยังไม่ได้ตัดสินใจเรื่องแสดงชื่อครูต่อสาธารณะ — ตอนนี้ซ่อนอยู่ กดบันทึกเพื่อยืนยันค่าปัจจุบัน</div>' : (effectiveHide(settings) ? '<p><span class="badge badge-hidden-teachers">ซ่อนชื่อครูในโหมดสาธารณะ</span></p>' : '')}
+  <div class="alert alert-warning show-names-warning" id="show-warning" role="alert" hidden>ชื่อครูและตารางสอนจะเป็นสาธารณะ ใครก็เปิดดูได้โดยไม่ต้องมีลิงก์ และไม่มีวันหมดอายุ <button type="button" class="btn btn-sm" id="set-confirm-show">ยืนยันแสดงชื่อครู</button></div>
+  ${isUnconfirmed(settings) ? '<div class="alert alert-warning unconfirmed-banner"><span class="badge badge-unconfirmed">ยังไม่ยืนยัน</span> ตอนนี้ระบบซ่อนรายชื่อครูไว้ก่อน (ค่าเริ่มต้น) — เลือกแสดงเมื่อพร้อม กดบันทึกเพื่อยืนยันค่าปัจจุบัน</div>' : (effectiveHide(settings) ? '<p><span class="badge badge-hidden-teachers">ซ่อนชื่อครูในโหมดสาธารณะ</span></p>' : '')}
   <p class="setting-meta text-muted">แก้ไขล่าสุด: ${esc(fmt(settings?.updatedAt))} โดย ${esc(settings?.updatedBy ?? '-')}</p>
   <div id="settings-errors"></div>
   <div class="row"><button type="button" class="btn btn-primary" id="set-save">บันทึกตั้งค่า</button></div>`;
 
+  // เลือกแสดงชื่อครู (จากที่ซ่อนอยู่) ต้องกดยืนยันก่อนจึงบันทึกได้
+  let confirmedShow = showNames;
+  const warn = box.querySelector('#show-warning');
+  box.querySelector('#set-show-names').addEventListener('change', (e) => {
+    const on = Boolean(e.target.checked);
+    confirmedShow = on && showNames;
+    warn.hidden = !on || confirmedShow;
+  });
+  box.querySelector('#set-confirm-show').addEventListener('click', () => {
+    confirmedShow = true;
+    warn.hidden = true;
+  });
   let busy = false;
   box.querySelector('#set-save').addEventListener('click', async () => {
     if (busy) return;
+    if (box.querySelector('#set-show-names').checked && !confirmedShow) {
+      warn.hidden = false;
+      box.querySelector('#settings-errors').innerHTML = errorListHtml(['กดยืนยันแสดงชื่อครูก่อนบันทึก'], 'ยังบันทึกไม่ได้');
+      return;
+    }
     busy = true;
     // ส่งทั้งสองช่องเป็น true/false ชัดเจน (ไม่ส่ง null) + revision ล่าสุดที่ได้จาก GET (กันแอดมินสองคนเขียนทับกัน → 409)
     const next = {

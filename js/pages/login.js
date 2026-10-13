@@ -46,7 +46,7 @@ export function renderLogin(root, { onSuccess } = {}) {
       } else if (ex instanceof ApiError && ex.status === 0) {
         err.textContent = 'เชื่อมต่อเซิร์ฟเวอร์ไม่ได้ ลองใหม่อีกครั้ง';
       } else if (ex instanceof ApiError && ex.status >= 500) {
-        err.textContent = 'เซิร์ฟเวอร์ขัดข้อง ลองใหม่ภายหลัง';
+        err.textContent = 'ระบบขัดข้อง โปรดติดต่อผู้ดูแล';
       } else {
         err.textContent = BAD_LOGIN;
       }

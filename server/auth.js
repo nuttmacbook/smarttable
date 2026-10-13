@@ -5,7 +5,7 @@ import crypto from 'node:crypto';
 import { promisify } from 'node:util';
 import { Buffer } from 'node:buffer';
 import { HttpError, ConfigError } from './http.js';
-import { RATE_LUA } from './redis.js';
+import { RATE_LUA, resolveRedisConfig } from './redis.js';
 
 const scrypt = promisify(crypto.scrypt);
 
@@ -176,4 +176,8 @@ export async function checkPublicRate(redis, ip) {
 }
 
 /** hash ของ IP สำหรับ audit log (ย่อ 16 ตัว, ผูกกับ token ของฐานข้อมูล เพื่อไม่ให้ brute force ย้อนกลับจากพื้นที่ IPv4 ได้ง่าย) */
-export const ipFingerprint = (ip) => sha256hex(`${ip}|${process.env.UPSTASH_REDIS_REST_TOKEN ?? 'tt'}`).slice(0, 16);
+export const ipFingerprint = (ip) => {
+  let salt = 'tt';
+  try { salt = resolveRedisConfig().token; } catch { /* ยังไม่ตั้งค่า Redis: ใช้ค่าคงที่ (audit เขียนไม่ได้อยู่แล้ว) */ }
+  return sha256hex(`${ip}|${salt}`).slice(0, 16);
+};

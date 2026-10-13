@@ -13,6 +13,7 @@ import { renderSchedule } from './pages/schedule.js';
 import { renderSubjects } from './pages/subjects.js';
 import { renderGroups, renderClassrooms, renderTeachers } from './pages/rooms-teachers.js';
 import { renderPlans } from './pages/plans.js';
+import { renderLevels } from './pages/levels.js';
 import { renderGroupView, renderTeacherView, renderClassroomView } from './pages/views.js';
 import { renderData } from './pages/data.js';
 import { renderShares, scopeLabel } from './pages/shares.js';
@@ -24,6 +25,7 @@ export const ROUTES = [
   { path: 'schedule', title: 'จัดตาราง', render: renderSchedule },
   { path: 'subjects', title: 'รายวิชา', render: renderSubjects },
   { path: 'groups', title: 'กลุ่มเรียน', render: renderGroups },
+  { path: 'levels', title: 'ระดับ', render: renderLevels },
   { path: 'plans', title: 'แผนการเรียน', render: renderPlans },
   { path: 'classrooms', title: 'ห้องเรียน', render: renderClassrooms },
   { path: 'teachers', title: 'ครู', render: renderTeachers },
@@ -138,7 +140,7 @@ export function createApp({ api, els, env }) {
     try {
       route.render(els.main);
       if (ctx.role === 'admin' && isUnconfirmed(ctx.settings) && typeof els.main.insertAdjacentHTML === 'function') {
-        els.main.insertAdjacentHTML('afterbegin', '<div class="alert alert-warning unconfirmed-banner" role="alert"><span class="badge badge-unconfirmed">ยังไม่ยืนยัน</span> ยังไม่ได้ตัดสินใจเรื่องแสดงชื่อครูต่อสาธารณะ — ตอนนี้ซ่อนอยู่ <a href="#/settings">ไปหน้าตั้งค่า</a></div>');
+        els.main.insertAdjacentHTML('afterbegin', '<div class="alert alert-warning unconfirmed-banner" role="alert"><span class="badge badge-unconfirmed">ยังไม่ยืนยัน</span> ตอนนี้ระบบซ่อนรายชื่อครูไว้ก่อน (ค่าเริ่มต้น) — เลือกแสดงเมื่อพร้อม <a href="#/settings">ไปหน้าตั้งค่า</a></div>');
       }
       if (ctx.role === 'viewer') {
         // แทรกแบนเนอร์โดยไม่เขียน innerHTML ทับ (ไม่ทำให้ event listener ของหน้าหาย)

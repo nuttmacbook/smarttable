@@ -2,6 +2,7 @@
 // ชีตข้อมูลมีเฉพาะแถวหัว (ไม่ใส่แถวตัวอย่าง กันถูกนำเข้าเป็นข้อมูลจริงโดยไม่ตั้งใจ)
 // ตัวอย่างและหมายเหตุอยู่ที่ชีต "วิธีใช้" (importer ข้ามชีตนี้ และรายงานเป็น info)
 import { IMPORT_COLUMNS, IMPORT_SHEETS } from '../importer.js';
+import { DEFAULT_LEVELS } from '../constants.js';
 import { textCell, writeWorkbook } from './xlsx.js';
 import { formatFileDate } from './model.js';
 
@@ -25,16 +26,30 @@ const EXAMPLES = {
   'แผนการเรียน': ['แผนปวช.1 เทคโนโลยีสารสนเทศ', 'ปวช.1', '20901-2001,20000-1101', ''],
 };
 
-const NOTES = [
+// หมายเหตุในชีต "วิธีใช้" — รายการระดับอ่านจาก state.levels (ส่งเข้ามาเป็น levels) ไม่ฝังตายตัว
+const notesFor = (levels) => [
   'ชีตที่ไม่ต้องการนำเข้า ลบหรือปล่อยว่างได้ (ชีตที่ไม่มีจะถูกข้าม) · แถวแรกของแต่ละชีตคือหัวคอลัมน์ อย่าแก้ชื่อชีตหรือหัวคอลัมน์',
   'หัวคอลัมน์ที่มี * คือช่องที่จำเป็น · แถวว่างทั้งแถวจะถูกข้าม · ช่องว่างหัวท้ายถูกตัดอัตโนมัติ',
   'ตัวเลขต้องเป็นจำนวนเต็ม ≥ 0 (ชม./สัปดาห์ ≥ 1) · ชม./สัปดาห์ ถ้าว่าง = ท + ป',
-  'ประเภทวิชา: สามัญ หรือ วิชาชีพ · ระดับ: ปวช.1 ปวช.2 ปวช.3 ปวส.1 ปวส.2 · หลายค่าคั่นด้วย , เช่น ปวช.1,ปวช.2',
+  `ประเภทวิชา: สามัญ หรือ วิชาชีพ · ระดับต้องเป็นระดับที่มีอยู่ในระบบ: ${levels.join(' ')} (ระดับใหม่ต้องเพิ่มที่หน้า "ระดับ" ก่อนนำเข้า) · หลายค่าคั่นด้วย , เช่น ${levels.slice(0, 2).join(',') || 'ระดับ1,ระดับ2'}`,
   'การรวมข้อมูล: จับคู่ด้วยคีย์ (รหัสวิชา / ชื่อครู / ชื่อห้องเรียน / ชื่อกลุ่มเรียน / ชื่อแผน) ตรง = อัปเดตฟิลด์ที่กรอก (ว่าง = ไม่ทับ) ไม่ตรง = เพิ่มใหม่ · ไม่มีการลบข้อมูล',
   'ไฟล์ต้องเป็น .xlsx ขนาดไม่เกิน 5 MB และไม่เกิน 5,000 แถวต่อชีต · ระบบจะแสดงรายงานก่อนยืนยันการนำเข้า',
 ];
 
-export function buildTemplateSheets() {
+// levels = state.levels ปัจจุบัน (ไม่ส่ง = ค่าเริ่มต้น DEFAULT_LEVELS) — ใช้ใส่ในตัวอย่างและหมายเหตุ ไม่มีผลกับหัวคอลัมน์
+export function buildTemplateSheets({ levels = DEFAULT_LEVELS } = {}) {
+  const clean = Array.isArray(levels) ? levels.filter((l) => typeof l === 'string' && l.trim()) : [];
+  const lv = clean.length ? clean : [...DEFAULT_LEVELS];
+  const L1 = lv[0] ?? 'ระดับ1';
+  const L2 = lv[1] ?? L1;
+  const examples = {
+    ...EXAMPLES,
+    'รายวิชา': EXAMPLES['รายวิชา'].map((v, i) => (i === 7 ? `${L1},${L2}` : v)),
+    // ชื่อกลุ่ม/แผนในตัวอย่างอิงระดับแรกของระบบ (ไม่ฝัง "ปวช.1" เมื่อแอดมินตั้งระดับเอง)
+    'กลุ่มเรียน': EXAMPLES['กลุ่มเรียน'].map((v, i) => (i === 0 ? `${L1}/1` : i === 1 ? L1 : i === 3 ? `แผน${L1} เทคโนโลยีสารสนเทศ` : v)),
+    'แผนการเรียน': EXAMPLES['แผนการเรียน'].map((v, i) => (i === 0 ? `แผน${L1} เทคโนโลยีสารสนเทศ` : i === 1 ? L1 : v)),
+  };
+  const NOTES = notesFor(lv);
   const sheets = [];
   const headStyle = { fontWeight: 'bold', backgroundColor: '#e0e7ff', borderColor: '#9ca3af', borderStyle: 'thin', alignVertical: 'center' };
   const headers = (name) => IMPORT_COLUMNS[name].map((c) => textCell(REQUIRED[name]?.includes(c) ? `${c}*` : c, headStyle));
@@ -55,13 +70,13 @@ export function buildTemplateSheets() {
     help.push([]);
     help.push([textCell(`ชีต "${name}"`, { fontWeight: 'bold' })]);
     help.push(headers(name));
-    help.push(EXAMPLES[name].map((v) => textCell(v)));
+    help.push(examples[name].map((v) => textCell(v)));
   }
   sheets.push({ sheet: HELP_SHEET, data: help, columns: Array.from({ length: 10 }, () => ({ width: 24 })) });
   return sheets;
 }
 
-export async function downloadTemplate({ date = new Date() } = {}) {
-  const blob = await writeWorkbook(buildTemplateSheets());
+export async function downloadTemplate({ date = new Date(), levels } = {}) {
+  const blob = await writeWorkbook(buildTemplateSheets({ levels }));
   return { blob, fileName: `เทมเพลตนำเข้า-ตารางเรียนตารางสอน-${formatFileDate(date)}.xlsx` };
 }

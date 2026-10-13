@@ -6,9 +6,8 @@
 //   rows = array ของแถว: แถวแรกคือหัวคอลัมน์ (array ของเซลล์) หรือ array ของ object ที่คีย์คือหัวคอลัมน์
 // กฎรวม (merge): จับคู่ด้วยคีย์ ตรง = อัปเดตเฉพาะฟิลด์ที่กรอก (ว่าง = ไม่ทับ) ไม่ตรง = เพิ่มใหม่ ไม่ลบอะไร
 // atomic: มี error อย่างน้อย 1 รายการ → ok:false, state:null (ไม่มีอะไรเปลี่ยน)
-import { LEVELS } from './constants.js';
 import { validateAll } from './scheduler.js';
-import { parseState, trimOverHours, uid } from './store.js';
+import { parseState, trimOverHours, uid, deriveLevels } from './store.js';
 import { sanitizeText, hasUnsafeChars } from './validate.js';
 
 // Map (ไม่ใช้ object ธรรมดา) กันค่าอย่าง __proto__/constructor ในเซลล์ประเภท (W-02)
@@ -107,6 +106,12 @@ export function importRows(state, sheets, { trimOverHours: trim = false, idGen =
     plans: state.plans || [], entries: state.entries,
   });
   work.version = state.version;
+  // ระดับอ่านจาก state.levels เสมอ (แอดมินกำหนด) — นำเข้าไฟล์ที่มีระดับใหม่ = error ชัดเจน ไม่สร้างระดับเงียบ ๆ
+  const levelNames = Array.isArray(state.levels) ? state.levels.filter((n) => typeof n === 'string') : deriveLevels(state);
+  work.levels = [...levelNames];
+  const levelSet = new Set(levelNames);
+  const unknownLevelMsg = (l) =>
+    `ระดับ "${l}" ไม่มีในรายการระดับของระบบ (ต้องเป็น ${levelNames.join(', ') || '(ยังไม่มีระดับ)'}) — เพิ่มระดับใหม่ที่หน้า "ระดับ" ก่อนแล้วนำเข้าอีกครั้ง`;
 
   // ---- อ่านชีตเป็นแถวที่มีชื่อคอลัมน์ ----
   function readSheet(name) {
@@ -275,13 +280,10 @@ export function importRows(state, sheets, { trimOverHours: trim = false, idGen =
     const out = [];
     let bad = false;
     for (const l of splitList(text)) {
-      if (!LEVELS.includes(l)) {
-        add(S, rowNo, 'error', `ระดับ "${l}" ไม่ถูกต้อง (ต้องเป็น ${LEVELS.join(', ')})`, column);
+      if (!levelSet.has(l)) {
+        add(S, rowNo, 'error', unknownLevelMsg(l), column);
         bad = true;
       } else if (!out.includes(l)) out.push(l);
-    }
-    for (const l of out) {
-      if (!l.startsWith('ปวช.')) add(S, rowNo, 'warning', `ระดับ "${l}" ไม่ใช่ระดับ ปวช.`, column);
     }
     return bad ? undefined : out;
   };
@@ -412,11 +414,8 @@ export function importRows(state, sheets, { trimOverHours: trim = false, idGen =
         const levelText = r.get('ระดับ');
         let level;
         if (levelText) {
-          if (!LEVELS.includes(levelText)) add(S, r.rowNo, 'error', `ระดับ "${levelText}" ไม่ถูกต้อง (ต้องเป็น ${LEVELS.join(', ')})`, 'ระดับ');
-          else {
-            level = levelText;
-            if (!level.startsWith('ปวช.')) add(S, r.rowNo, 'warning', `ระดับ "${level}" ไม่ใช่ระดับ ปวช.`, 'ระดับ');
-          }
+          if (!levelSet.has(levelText)) add(S, r.rowNo, 'error', unknownLevelMsg(levelText), 'ระดับ');
+          else level = levelText;
         } else if (!ex) add(S, r.rowNo, 'error', 'ต้องระบุ "ระดับ" สำหรับแผนใหม่', 'ระดับ');
 
         const codeText = r.get('รหัสวิชา');
@@ -462,11 +461,8 @@ export function importRows(state, sheets, { trimOverHours: trim = false, idGen =
         const levelText = r.get('ระดับ');
         let level;
         if (levelText) {
-          if (!LEVELS.includes(levelText)) add(S, r.rowNo, 'error', `ระดับ "${levelText}" ไม่ถูกต้อง (ต้องเป็น ${LEVELS.join(', ')})`, 'ระดับ');
-          else {
-            level = levelText;
-            if (!level.startsWith('ปวช.')) add(S, r.rowNo, 'warning', `ระดับ "${level}" ไม่ใช่ระดับ ปวช.`, 'ระดับ');
-          }
+          if (!levelSet.has(levelText)) add(S, r.rowNo, 'error', unknownLevelMsg(levelText), 'ระดับ');
+          else level = levelText;
         } else if (!ex) add(S, r.rowNo, 'error', 'ต้องระบุ "ระดับ" สำหรับกลุ่มเรียนใหม่', 'ระดับ');
 
         const effLevel = level ?? ex?.level;

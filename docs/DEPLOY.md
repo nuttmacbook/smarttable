@@ -26,6 +26,26 @@
 4. **ทำฐานข้อมูลที่ 2 สำหรับทดสอบ (Preview)** ด้วยวิธีเดียวกัน ถ้าจะใช้ Preview — ห้ามใช้ฐานเดียวกับของจริง (ข้อ 5)
 5. เก็บค่าเหล่านี้ไว้ในที่ปลอดภัย (ตัวจัดการรหัสผ่าน) อย่าส่งทางแชต/อีเมล และอย่าบันทึกลงไฟล์ในโปรเจกต์
 
+### 2.1 ทางลัด: สร้าง/เชื่อม Upstash ผ่านหน้า Storage ของ Vercel (แทนข้อ 2 ข้างบน)
+Vercel → Project → **Storage** → **Create/Connect Database** → เลือก **Upstash (Redis)** → สร้างฐานข้อมูล แล้วเชื่อมกับโปรเจกต์นี้ — Vercel จะ **เพิ่มตัวแปร environment ให้อัตโนมัติ** ชื่อรูปแบบ `KV_*` (ตามความจำของผู้เขียน ยังไม่ได้ยืนยันกับบัญชีจริง ให้เทียบกับที่เห็นในหน้า Environment Variables ของคุณ):
+
+| ตัวแปรที่ Vercel สร้างให้ | โค้ดนี้ใช้ไหม | หมายเหตุ |
+|---|---|---|
+| `KV_REST_API_URL` | **ใช้** (ทดแทน `UPSTASH_REDIS_REST_URL`) | ที่อยู่ REST `https://…` |
+| `KV_REST_API_TOKEN` | **ใช้** (ทดแทน `UPSTASH_REDIS_REST_TOKEN`) | token เขียน/อ่าน (ความลับ) |
+| `KV_REST_API_READ_ONLY_TOKEN` | **ใช้** (ทดแทน `UPSTASH_REDIS_REST_READONLY_TOKEN`) | token อ่านอย่างเดียว · ชื่อนี้ยังไม่ได้ยืนยันว่า integration สร้างจริง |
+| `KV_URL`, `REDIS_URL` (ขึ้นต้น `redis://` หรือ `rediss://`) | **ไม่ใช้** | เป็นที่อยู่แบบ Redis protocol — โค้ดใช้เฉพาะ REST ห้ามเอาไปใส่ในช่อง `UPSTASH_REDIS_REST_URL` |
+
+กติกาที่โค้ดใช้เลือกชุด (ดู `server/redis.js`):
+1. ถ้าตั้ง `UPSTASH_REDIS_REST_URL` **หรือ** `UPSTASH_REDIS_REST_TOKEN` อย่างใดอย่างหนึ่ง → ใช้ชุด `UPSTASH_REDIS_REST_*` เท่านั้น (ถ้าตั้งไม่ครบทั้งคู่ = ตอบ 500 พร้อมข้อความระบุชื่อตัวแปร ไม่ตกไปใช้ชุด `KV_*` เงียบ ๆ)
+2. ถ้าไม่ตั้งชุด `UPSTASH_*` เลย → ใช้ `KV_REST_API_URL` + `KV_REST_API_TOKEN` (+ `KV_REST_API_READ_ONLY_TOKEN` ถ้ามี)
+3. **ไม่ผสมข้ามชุด** (URL จากชุดหนึ่ง token อีกชุดไม่มีทางเกิด) · ไม่มีทั้งสองชุด = 500 และข้อความบอกชื่อตัวแปรของทั้งสองชุด
+4. ตั้งทั้งสองชุดพร้อมกัน → ใช้ `UPSTASH_*` — ระวังอย่าให้ชี้คนละฐานโดยไม่ตั้งใจ
+
+**ห้ามเอาค่า `KV_REST_API_TOKEN` / `KV_REST_API_READ_ONLY_TOKEN` (หรือ `UPSTASH_REDIS_REST_TOKEN`) ไปใส่ในไฟล์ที่ commit** — ใส่ที่ Vercel Environment Variables เท่านั้น (ถ้าต้องดึงลงเครื่องด้วย `vercel env pull` ไฟล์ `.env.local` ที่ได้ถูก `.gitignore` กันไว้แล้ว อย่าแชร์) · โค้ดไม่ log URL หรือ token และข้อความ error ของการตั้งค่าบอกแค่ชื่อตัวแปร ไม่บอกค่า
+
+**ข้อควรระวัง:** integration มักเพิ่มตัวแปรให้ **ทุก environment (Production/Preview/Development) ชี้ฐานเดียวกัน** ซึ่งขัดกับกติกา "Production กับ Preview ต้องแยกฐาน" (ข้อ 5) — สร้างฐานข้อมูลที่ 2 สำหรับ Preview แล้วตั้งตัวแปรของ Preview ให้ชี้ฐานนั้น (หรือเอา Preview ออกจากการเชื่อมของฐาน Production) แล้วตรวจที่ Settings → Environment Variables ว่าแต่ละ environment ได้ค่าที่ตั้งใจ
+
 ## 3. สร้างความลับของเซิร์ฟเวอร์
 
 ### 3.1 `SESSION_SECRET` (กุญแจของเซสชัน)
@@ -83,16 +103,19 @@ Vercel → Project → **Settings → Environment Variables → Add** · ตั�
 
 | ตัวแปร | บังคับ | ความหมาย | ตัวอย่างค่า (ไม่ใช่ของจริง) |
 |---|---|---|---|
-| `UPSTASH_REDIS_REST_URL` | ใช่ | ที่อยู่ REST ของ Upstash (ข้อ 2) | `https://xxxx-12345.upstash.io` |
-| `UPSTASH_REDIS_REST_TOKEN` | ใช่ | token เขียน/อ่าน (ความลับ) | `AXxxXX…(ยาว)` |
+| `UPSTASH_REDIS_REST_URL` | ใช่* | ที่อยู่ REST ของ Upstash (ข้อ 2) | `https://xxxx-12345.upstash.io` |
+| `UPSTASH_REDIS_REST_TOKEN` | ใช่* | token เขียน/อ่าน (ความลับ) | `AXxxXX…(ยาว)` |
 | `UPSTASH_REDIS_REST_READONLY_TOKEN` | ไม่ | token อ่านอย่างเดียว ใช้กับเส้นทางผู้ชม/ลิงก์ — เขียนไม่ได้แม้โค้ดผิดพลาด | `AYyyYY…(ยาว)` |
+| `KV_REST_API_URL` / `KV_REST_API_TOKEN` / `KV_REST_API_READ_ONLY_TOKEN` | ใช่* (ถ้าไม่ใช้ชุด `UPSTASH_*`) | ชุดที่ Vercel สร้างให้เมื่อเชื่อม Upstash ผ่านหน้า Storage (ข้อ 2.1) ใช้ทดแทนชุดข้างบนทั้งชุด | — |
+
+\* ต้องมีอย่างน้อยหนึ่งชุดครบคู่ URL+token (ข้อ 2.1 อธิบายลำดับและข้อควรระวัง)
 | `SESSION_SECRET` | ใช่ | กุญแจเซสชัน ≥ 32 ไบต์ สุ่ม (ข้อ 3.1) | `k3J…(base64url ~64 ตัว)` |
 | `ADMIN_ACCOUNTS` | ใช่ | บัญชีแอดมิน (ข้อ 3.2) | `admin:scrypt$32768$8$1$<salt>$<hash>` |
 | `ALLOWED_ORIGINS` | ใช่ | โดเมนที่อนุญาตให้ส่งคำขอเขียน/login (คั่น `,`; เทียบ scheme+host+port เต็ม ไม่มี `/` ท้าย) | `https://timetable.example.com` |
 | `PUBLIC_RATE_LIMIT` | ไม่ | เพดานคำขอหน้าสาธารณะต่อ IP ต่อนาที (10–100000) ไม่ตั้ง = 300 | `300` |
 
 ข้อควรระวัง:
-- **ห้ามตั้งตัวแปรขึ้นต้น `VITE_` เลย** (หน้าเว็บไม่ใช้ตัวแปรใด ๆ ที่ขึ้นต้น `VITE_`; ค่าเหล่านี้จะถูกฝังลงหน้าเว็บที่ทุกคนอ่านได้ — `vite.config.js` ใช้ allowlist ที่ว่างอยู่ จึงทำให้ build ล้มถ้ามี `VITE_*` ที่มีค่า ไม่ว่าชื่ออะไร)
+- **ห้ามตั้งตัวแปรขึ้นต้น `VITE_` เลย** (หน้าเว็บไม่ใช้ตัวแปรใด ๆ ที่ขึ้นต้น `VITE_`; ค่าเหล่านี้จะถูกฝังลงหน้าเว็บที่ทุกคนอ่านได้ — `vite.config.js` ใช้ allowlist ที่ว่างอยู่ จึงทำให้ build ล้มถ้ามี `VITE_*` ที่มีค่า ไม่ว่าชื่ออะไร) · **ข้อยกเว้นเดียว:** ตัวแปรที่ขึ้นต้น `VITE_VERCEL_` (Vercel สร้างให้เองเมื่อเปิด *Automatically expose System Environment Variables* เช่น `VITE_VERCEL_ENV`, `VITE_VERCEL_URL`, `VITE_VERCEL_GIT_COMMIT_SHA`) ผ่านได้ เพราะ `vite.config.js` ตั้ง `envPrefix` เป็นค่าที่ไม่มีใครใช้ จึงไม่มีตัวแปร `VITE_*` ใดถูกฝังลงหน้าเว็บ · **อย่าเพิ่มชื่อตัวแปรใหม่ที่มีโทเค็นหรือความลับเข้า `ALLOWED_VITE_VARS` เด็ดขาด** · ทางเลือกสำรอง: ปิด *Automatically expose System Environment Variables* ที่ Vercel → Project → Settings → Environment Variables
 - **Production กับ Preview ต้องใช้คนละค่า:** ฐาน Upstash คนละตัว, `SESSION_SECRET` คนละค่า, `ADMIN_ACCOUNTS` คนละบัญชี/คนละรหัสผ่าน (ห้ามเอารหัสผ่านจริงไปใส่ใน Preview) · URL ของ Preview เปลี่ยนทุก deployment จึงใส่ใน `ALLOWED_ORIGINS` ลำบาก — ใช้ alias คงที่ หรือยอมรับว่า Preview เขียนข้อมูลไม่ได้จนกว่าจะตั้ง
 - **เปิด Deployment Protection ให้ Preview** (Settings → Deployment Protection) เพื่อไม่ให้ใครเข้า Preview ที่ต่อฐานทดสอบ
 - แก้ env แล้วต้อง **Redeploy** (Deployments → ⋯ → Redeploy) ถึงจะมีผล
@@ -200,14 +223,14 @@ fetch('/api/migrate', { method: 'POST', headers: { 'Content-Type': 'application/
 ## 13. แก้ปัญหาที่พบบ่อย
 | อาการ | สาเหตุที่เป็นไปได้ | วิธีแก้ |
 |---|---|---|
-| เข้าสู่ระบบได้ข้อความ 500 / "เซิร์ฟเวอร์ขัดข้อง" | `SESSION_SECRET` ขาดหรือสั้น · `ADMIN_ACCOUNTS` ว่าง/เสียทุกรายการ · username ซ้ำ (แม้ต่างตัวพิมพ์) · ยังไม่ตั้ง `ALLOWED_ORIGINS` (ไม่ตั้ง = เขียน/login ไม่ได้ทุก environment) | ตรวจ env ตามข้อ 5 แล้ว Redeploy · ดู Vercel → Logs (บรรทัดขึ้นต้น `[api]`/`[auth]` ไม่มีความลับ) |
+| เข้าสู่ระบบได้ข้อความ 500 / "เซิร์ฟเวอร์ขัดข้อง" | `SESSION_SECRET` ขาดหรือสั้น · ตัวแปร Upstash ไม่ครบคู่ (`UPSTASH_REDIS_REST_URL`+`_TOKEN` หรือ `KV_REST_API_URL`+`_TOKEN` — Logs จะบอกชื่อที่ขาด) · `ADMIN_ACCOUNTS` ว่าง/เสียทุกรายการ · username ซ้ำ (แม้ต่างตัวพิมพ์) · ยังไม่ตั้ง `ALLOWED_ORIGINS` (ไม่ตั้ง = เขียน/login ไม่ได้ทุก environment) | ตรวจ env ตามข้อ 5 แล้ว Redeploy · ดู Vercel → Logs (บรรทัดขึ้นต้น `[api]`/`[auth]` ไม่มีความลับ) |
 | เข้าสู่ระบบได้ 403 | `ALLOWED_ORIGINS` ไม่ตรงกับโดเมนที่เปิดจริง (ตัวอักษร/ https / มี `/` ท้าย / เปิดผ่านโดเมนอื่น) | แก้ให้ตรงทุกตัวอักษร (ข้อ 6) แล้ว Redeploy |
 | ได้ "ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง" ทั้งที่แน่ใจว่าถูก | แฮชใน `ADMIN_ACCOUNTS` เพี้ยน/ถูกตัด (ดู Logs หา `ข้ามรายการที่รูปแบบผิด`) · ไม่ได้ Redeploy หลังแก้ env · ใช้ env ของ Preview แทน Production | ตั้งค่าใหม่ตามข้อ 3.2 (วางที่ช่อง Value ตรง ๆ) → Redeploy |
 | ได้ 429 "ลองบ่อยเกินไป" | rate limit | รอตาม `Retry-After` หรือดูข้อ 12 |
 | ล็อกอินแล้วหลุดทันที / ไม่ติดเซสชัน | เปิดผ่าน `http://` (คุกกี้ `__Host-` ต้อง https) · เบราว์เซอร์ตั้งค่าบล็อกคุกกี้ | ใช้ https · ตรวจว่าเบราว์เซอร์ไม่บล็อกคุกกี้ของเว็บนี้ |
 | ขึ้นว่า "ตั้งค่าถูกแก้โดยผู้อื่น" (409) | แอดมินอีกคนบันทึกตั้งค่าไปก่อน | โหลดหน้าใหม่ แล้วบันทึกอีกครั้ง |
 | หน้าเว็บ/ส่งออก Excel-PDF ใช้ไม่ได้ มีข้อความ CSP ใน Console | นโยบาย CSP ใน `vercel.json` ปฏิเสธบางอย่าง (ยังไม่เคยลองในเบราว์เซอร์จริง) | จดข้อความ violation ทั้งบรรทัดแจ้งผู้ดูแลโค้ด · **อย่าเปิด `unsafe-inline` ใน `script-src`** |
-| `build` ล้มด้วยข้อความ "ขึ้นต้นด้วย VITE_ … ฝังลงบันเดิล" | มีตัวแปรขึ้นต้น `VITE_` (ใน Vercel env หรือไฟล์ `.env`) ที่ไม่อยู่ใน allowlist | ลบตัวแปรนั้น (หน้าเว็บไม่ใช้) ถ้าเป็นความลับต้องเปลี่ยนชื่อให้ไม่มี `VITE_` (ข้อ 5) |
+| `build` ล้มด้วยข้อความ "ขึ้นต้นด้วย VITE_ … ฝังลงบันเดิล" | มีตัวแปรขึ้นต้น `VITE_` (ใน Vercel env หรือไฟล์ `.env`) ที่ไม่อยู่ใน allowlist (ตัวแปรระบบ `VITE_VERCEL_*` ของ Vercel ไม่ทำให้ล้มแล้ว — ถ้าข้อความระบุชื่ออื่นที่ไม่ใช่ `VITE_VERCEL_*` ให้แก้ตามนี้) | ลบตัวแปรนั้น (หน้าเว็บไม่ใช้) ถ้าเป็นความลับต้องเปลี่ยนชื่อให้ไม่มี `VITE_` (ข้อ 5) |
 | หน้าสาธารณะแจ้ง "ผู้ดูแลปิดการเข้าชมสาธารณะ" | แอดมินปิดไว้ | เมนู **ตั้งค่า** → เปิดโหมดสาธารณะ |
 | หน้าสาธารณะ 503 | อ่าน Upstash ไม่ได้ (ล่ม/token ผิด/โควตาหมด) | ตรวจสถานะ Upstash และ `UPSTASH_REDIS_REST_*` |
 | ได้ 413 ตอนบันทึก | ข้อมูลส่วนหนึ่งใหญ่เกิน ~900 KB ต่อหนึ่งรายการ | แบ่งข้อมูล/แจ้งผู้ดูแลโค้ด |
@@ -229,6 +252,7 @@ fetch('/api/migrate', { method: 'POST', headers: { 'Content-Type': 'application/
 - **หัว `Cache-Control` ของ `/api/public`:** `vercel.json` ตั้ง `no-cache` เฉพาะ path นี้ (และ `no-store` ให้ endpoint อื่น) แต่ยังไม่ได้ลองว่า Vercel ตีความกฎ `source` ตามที่ตั้งใจ — ตรวจด้วยข้อ 7.4 ถ้าไม่ตรง ผลเสียคือแค่ไม่ได้ 304 (ข้อมูลยังถูกต้อง)
 - **CSP ไม่เคยลองในเบราว์เซอร์จริง:** `worker-src blob:` เป็นข้อสันนิษฐานจากโค้ด (บันเดิลของไลบรารี Excel มี `new Worker`) · ถ้าส่งออก/นำเข้า Excel พังและมี violation ใน Console ให้แจ้งผู้ดูแลโค้ด
 - **Node 22** ที่ Vercel ใช้ ยังไม่ได้รันยืนยัน (ทดสอบบนเครื่องพัฒนาด้วย Node เวอร์ชันใหม่กว่า)
+- **ตัวแปรระบบที่ Vercel ฉีดเข้ามาเอง (บทเรียน T60):** guard `VITE_*` เคยผ่านเทสต์หมดแต่ล้มบน Vercel เพราะ Vercel สร้าง `VITE_VERCEL_*` ให้เองตอน build (เมื่อเปิด "Automatically expose System Environment Variables") — `vite.config.js` จึงยกเว้นคำนำหน้า `VITE_VERCEL_` เฉพาะ · **ตามความรู้ของผู้เขียน (ไม่ได้ตรวจกับเอกสาร/บัญชีจริงรอบนี้):** Vercel มีตัวแปรระบบชุด `VERCEL_*` (เช่น `VERCEL`, `VERCEL_ENV`, `VERCEL_URL`, `VERCEL_REGION`, `VERCEL_GIT_*`) และเมื่อเปิดตัวเลือกข้างต้นจะสร้างสำเนาที่ใส่คำนำหน้าตาม framework ให้ด้วย (รูปแบบ `<คำนำหน้า>VERCEL_*` เช่น `NEXT_PUBLIC_VERCEL_*`, `VITE_VERCEL_*`, `GATSBY_*`, `NUXT_ENV_*`, `REACT_APP_*` — ของ Vite คือ `VITE_`) · ระดับ build ยังมี `CI=1` และ `NODE_ENV` ที่ถูกตั้งให้ · ชื่อที่โค้ดเราอ่านเองทั้งหมด (`UPSTASH_REDIS_REST_*`, `SESSION_SECRET`, `ADMIN_ACCOUNTS`, `ALLOWED_ORIGINS`, `PUBLIC_RATE_LIMIT`) **ไม่ขึ้นต้นด้วย `VERCEL_`** จึงไม่ชนกัน และโค้ดฝั่งเซิร์ฟเวอร์ไม่อ่าน `VERCEL_*` ใด ๆ แล้ว · **ยังไม่ยืนยัน:** รายชื่อตัวแปรระบบที่แท้จริงในโปรเจกต์นี้ — ตรวจที่ Vercel → Settings → Environment Variables (ติ๊ก "Automatically expose System Environment Variables") หรือพิมพ์ชื่อ `VITE_*` ที่ build เห็นแล้วเทียบกับ guard · หลักปฏิบัติ: guard แบบ allowlist ต้องถามก่อนเสมอว่าแพลตฟอร์มปลายทางใส่อะไรเข้ามาให้บ้าง
 - ขั้นตอนย้ายข้อมูลจาก localStorage (ข้อ 8.2) เขียนจากโครงสร้างโค้ด ยังไม่ได้ลองกับข้อมูลจริงของบอส
 - ขั้นตอนบนหน้าเว็บ Vercel/Upstash (ชื่อเมนู/ปุ่ม) อาจต่างจากที่เขียนเมื่อบริการเปลี่ยนหน้าจอ
 

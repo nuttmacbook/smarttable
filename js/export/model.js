@@ -1,7 +1,11 @@
 // โมเดลตารางสำหรับส่งออก (pure) — สร้างโครงตารางจาก state + scope ไม่แตะ DOM / ไลบรารี xlsx / pdf
 // หน้าตาราง: คอลัมน์ = คาบ 1–11 (แทรกคอลัมน์พักเที่ยงต่อจากคาบ LUNCH.afterPeriod) แถว = จันทร์–ศุกร์
 // ใช้ได้ทั้ง state v3 และ v4 (อ่านเฉพาะ subjects/teachers/groups/rooms/entries)
-import { DAYS, PERIODS, LUNCH, LEVELS } from '../constants.js';
+import * as C from '../constants.js';
+
+const { DAYS, PERIODS, LUNCH } = C;
+// ลำดับระดับ: อ่านจาก state.levels (v5) ถ้าไม่มี (state เก่า) ใช้ DEFAULT_LEVELS · ระดับที่ไม่อยู่ในรายการ → ท้ายสุด (rank = ความยาวรายการ)
+const levelOrder = (state) => (Array.isArray(state.levels) ? state.levels : C.DEFAULT_LEVELS);
 import { effectiveTeacherId } from '../scheduler.js';
 
 export const KINDS = [
@@ -56,9 +60,10 @@ export function listItems(state, kind) {
       .map((r) => ({ kind, id: r.id, name: r.name, detail: str(r.building) }));
   }
   if (kind === 'group') {
+    const order = levelOrder(state);
     const rank = (g) => {
-      const i = LEVELS.indexOf(g.level);
-      return i < 0 ? LEVELS.length : i;
+      const i = order.indexOf(g.level);
+      return i < 0 ? order.length : i;
     };
     return [...(state.groups || [])]
       .sort((a, b) => rank(a) - rank(b) || thaiCompare(a.name, b.name))
@@ -70,11 +75,15 @@ export function listItems(state, kind) {
 // scope = { kind, mode: 'one'|'many'|'all'|'everything', ids?: [id] }
 // คืน [{kind,id,name,detail}] ตามลำดับที่จะออกไฟล์; id ที่ไม่มีอยู่จริงข้าม (ไม่ throw)
 // ผู้ดูอย่างเดียว: state ที่ได้มาถูกกรอง scope แล้ว จึงไม่มีทางเลือกเกินสิทธิ์
-export function resolveScope(state, scope = {}) {
+// hideTeacherNames (ชั้นป้องกันซ้ำ): ซ่อนรายชื่อครู = ไม่ออกตารางรายครู และไม่ใส่ชื่อครูในช่อง
+// (ปกติ state ของผู้ชมที่ซ่อนชื่อครูไม่มีครูอยู่แล้ว ตัวเลือกนี้กันกรณีส่ง state เต็มเข้ามาโดยพลาด)
+export function resolveScope(state, scope = {}, { hideTeacherNames = false } = {}) {
   const { kind, mode = 'all' } = scope;
   if (!MODES.includes(mode)) throw new Error(`โหมดส่งออกไม่ถูกต้อง: ${mode}`);
-  if (mode === 'everything') return KINDS.flatMap((k) => listItems(state, k.id));
+  const kinds = hideTeacherNames ? KINDS.filter((k) => k.id !== 'teacher') : KINDS;
+  if (mode === 'everything') return kinds.flatMap((k) => listItems(state, k.id));
   if (!KINDS.some((k) => k.id === kind)) throw new Error(`ประเภทส่งออกไม่ถูกต้อง: ${kind}`);
+  if (hideTeacherNames && kind === 'teacher') return [];
   const all = listItems(state, kind);
   if (mode === 'all') return all;
   const wanted = new Set(Array.isArray(scope.ids) ? scope.ids : []);
@@ -94,16 +103,16 @@ export function buildColumns() {
 }
 
 // ข้อความหัวช่อง (รหัส + ชื่อ + ผู้เกี่ยวข้อง) ตามมุมมอง
-function describeEntry(state, kind, entry, mergedWith) {
+function describeEntry(state, kind, entry, mergedWith, hideTeacherNames = false) {
   const subject = byId(state.subjects, entry.subjectId);
   const group = byId(state.groups, entry.groupId);
   const room = entry.roomId ? byId(state.rooms, entry.roomId) : null;
-  const teacher = byId(state.teachers, effectiveTeacherId(state, entry));
+  const teacher = hideTeacherNames ? null : byId(state.teachers, effectiveTeacherId(state, entry));
   const head = subject ? [str(subject.code), str(subject.name)].filter(Boolean).join(' ') : '(ไม่พบรายวิชา)';
   const lines = [head];
   const groupName = group ? str(group.name) : '';
   // วิชามีหลายครูแต่คาบนี้ยังไม่ระบุครู → แสดงรายชื่อครูของวิชา (ข้อมูลเดิมจากรูปแบบ v3)
-  const poolNames = !teacher && subject && Array.isArray(subject.teacherIds)
+  const poolNames = !hideTeacherNames && !teacher && subject && Array.isArray(subject.teacherIds)
     ? subject.teacherIds.map((tid) => str(byId(state.teachers, tid)?.name)).filter(Boolean)
     : [];
   const teacherName = teacher ? str(teacher.name) : poolNames.join(', ');
@@ -142,11 +151,12 @@ function mergedGroupNames(state, entry) {
     .filter(Boolean);
 }
 
-export function buildTimetable(state, { kind, id }, { semester = '', year = '', printedAt = new Date() } = {}) {
+export function buildTimetable(state, { kind, id }, { semester = '', year = '', printedAt = new Date(), hideTeacherNames = false } = {}) {
   const columns = buildColumns();
   let title;
   let name;
   let subtitle = '';
+  if (kind === 'teacher' && hideTeacherNames) throw new Error('ซ่อนรายชื่อครู: ส่งออกตารางรายครูไม่ได้');
   if (kind === 'teacher') {
     const t = byId(state.teachers, id);
     if (!t) throw new Error(`ไม่พบครู: ${id}`);
@@ -179,7 +189,7 @@ export function buildTimetable(state, { kind, id }, { semester = '', year = '', 
       if (col.type === 'lunch') return { lunch: true, items: [] };
       const items = entries
         .filter((e) => e.day === day.id && e.period === col.id)
-        .map((e) => describeEntry(state, kind, e, mergedGroupNames(state, e)));
+        .map((e) => describeEntry(state, kind, e, mergedGroupNames(state, e), hideTeacherNames));
       return { lunch: false, items };
     }),
   }));
@@ -187,6 +197,7 @@ export function buildTimetable(state, { kind, id }, { semester = '', year = '', 
   const meta = [];
   const term = [str(semester) && `ภาคเรียนที่ ${str(semester)}`, str(year) && `ปีการศึกษา ${str(year)}`].filter(Boolean).join(' ');
   if (term) meta.push(term);
+  if (hideTeacherNames) meta.push('ซ่อนรายชื่อครู');
   meta.push(`พิมพ์เมื่อ ${formatThaiDate(printedAt)}`);
 
   return {
@@ -207,7 +218,7 @@ export function buildTimetable(state, { kind, id }, { semester = '', year = '', 
 }
 
 export function buildTimetables(state, scope, options = {}) {
-  return resolveScope(state, scope).map((it) => buildTimetable(state, it, options));
+  return resolveScope(state, scope, options).map((it) => buildTimetable(state, it, options));
 }
 
 // ข้อความหนึ่งช่องสำหรับ xlsx (ขึ้นบรรทัดใหม่ด้วย \n; เรียนรวมมีป้ายกำกับ)

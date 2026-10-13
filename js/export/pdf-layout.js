@@ -185,6 +185,13 @@ export function legendEntriesOf(items) {
   return [...by.values()].map((e) => [e.key, ...e.info].join(' · '));
 }
 
+// บรรทัดเดียวที่ต้องไม่ล้นความกว้าง (หัวกระดาษ): ลดขนาดลงถึง minSize แล้วตัดด้วย … → { text, size }
+export function fitSingleLine(str, size, minSize, bold, maxW) {
+  let s = size;
+  while (s > minSize && textWidth(str, s, bold) > maxW) s = Math.max(minSize, s - 0.5);
+  return { text: textWidth(str, s, bold) > maxW ? ellipsize(str, s, bold, maxW) : str, size: s };
+}
+
 // ---------- ลาย ----------
 function hatchLines(x, y, w, h, { angle, gap }, push) {
   if (angle === 45) { // "/"  : x + y = c
@@ -224,9 +231,11 @@ export function layoutTablePage(table, { maxLegendHeight = 112 } = {}) {
   const CW = W - 2 * M;
 
   // หัวกระดาษ
-  text(table.title, x0, M + 15 * 1.0, 15, true, STYLE.ink, 'center', CW);
-  const sub = [table.subtitle, ...table.metaLines].filter(Boolean).join('   ·   ');
-  text(sub, x0, M + 15 + 11.5, 8.5, false, '#222222', 'center', CW);
+  // ชื่อรายการ/บรรทัดย่อยที่ยาวมาก: ลดขนาดแล้วตัด … ให้อยู่ในความกว้างหน้าเสมอ
+  const ttl = fitSingleLine(table.title, 15, 10, true, CW - 4);
+  text(ttl.text, x0, M + 15 * 1.0, ttl.size, true, STYLE.ink, 'center', CW);
+  const sub = fitSingleLine([table.subtitle, ...table.metaLines].filter(Boolean).join('   ·   '), 8.5, 6.5, false, CW - 4);
+  text(sub.text, x0, M + 15 + 11.5, sub.size, false, '#222222', 'center', CW);
   const gridTop = M + 33;
 
   // legend ชื่อเต็ม (เฉพาะช่องที่ถูกตัด) — วัดก่อนเพื่อกันที่ให้ตาราง
@@ -446,7 +455,8 @@ export function layoutLegendContinuation(title, entries, startNumber) {
   const size = 8;
   const lh = size * LINE_FACTOR;
   const put = (str, x, y, s, bold) => scene.texts.push({ text: str, x, y: y - ASC * s, size: s, bold, color: STYLE.ink, width: 0 });
-  put(`${title} (ต่อ) — ชื่อเต็มของรายการที่ถูกตัด`, M, M + 14, 12, true);
+  const head = fitSingleLine(`${title} (ต่อ) — ชื่อเต็มของรายการที่ถูกตัด`, 12, 8, true, CW);
+  put(head.text, M, M + 14, head.size, true);
   const colWidth = (CW - 14) / 2;
   let col = 0;
   let y = M + 30;

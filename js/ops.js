@@ -6,14 +6,17 @@
 import { checkPlacement, validateAll } from './scheduler.js';
 import {
   parseState, applyPlan, removeTeacher, removeRoom, removeGroup, removeSubject, removePlan, trimOverHours, uid,
+  normalizeLevelName, levelNameIssue, levelKey, levelUsage, deriveLevels,
 } from './store.js';
+import { MAX_LEVELS } from './constants.js';
 import { importWorkbook } from './importer.js';
 import { isValidId, validateId, sanitizeText, hasUnsafeChars } from './validate.js';
 
 export const OP_TYPES = [
   'subject.upsert', 'subject.delete', 'teacher.upsert', 'teacher.delete', 'group.upsert', 'group.delete',
   'room.upsert', 'room.delete', 'plan.upsert', 'plan.delete', 'group.applyPlan',
-  'entry.place', 'entry.move', 'entry.update', 'entry.remove', 'entry.placeMany', 'entry.removeMany', 'state.import',
+  'entry.place', 'entry.move', 'entry.update', 'entry.remove', 'entry.placeMany', 'entry.removeMany',
+  'level.add', 'level.rename', 'level.remove', 'level.move', 'state.import',
 ];
 
 // id ต้องตรง regex และไม่ใช่ชื่อสงวนของ Object.prototype (W-02) — ตัวตรวจอยู่ที่ js/validate.js
@@ -38,8 +41,11 @@ export function diffState(before, after) {
     const remove = [...a.keys()].filter((id) => !b.has(id));
     changes[k] = { upsert, remove };
   }
+  // ระดับ (v5) เป็นรายการเรียงลำดับ ไม่ใช่แถวที่มี id: ใส่ changes.levels = { replace:[…รายการใหม่ทั้งหมด] } เฉพาะเมื่อมีการเปลี่ยน
+  if (!sameList(before.levels, after.levels)) changes.levels = { replace: Array.isArray(after.levels) ? [...after.levels] : [] };
   return changes;
 }
+const sameList = (a, b) => Array.isArray(a) && Array.isArray(b) && a.length === b.length && a.every((x, i) => x === b[i]);
 
 // สรุปจำนวนรายการที่ op กระทบ ต่อคอลเลกชัน: { subjects:{added,updated,removed}, ..., total:{added,updated,removed} }
 // ใช้เขียนข้อความ confirm ก่อน/หลังทำ op ทำลายล้าง (เช่น state.import แบบ replace) — คำนวณจาก before/after เดียวกับที่เซิร์ฟเวอร์ใช้
@@ -61,6 +67,14 @@ export function summarizeChanges(before, after) {
     total.updated += updated;
     total.removed += removed;
   }
+  // ระดับ: added/removed นับตามชื่อ, updated = 1 ถ้าชุดชื่อเท่าเดิมแต่ลำดับเปลี่ยน · ไม่รวมใน total (total นับเฉพาะแถวข้อมูล)
+  const bl = Array.isArray(before.levels) ? before.levels : [];
+  const al = Array.isArray(after.levels) ? after.levels : [];
+  const bset = new Set(bl);
+  const aset = new Set(al);
+  const lAdded = al.filter((n) => !bset.has(n)).length;
+  const lRemoved = bl.filter((n) => !aset.has(n)).length;
+  out.levels = { added: lAdded, updated: lAdded === 0 && lRemoved === 0 && !sameList(bl, al) ? 1 : 0, removed: lRemoved };
   return { ...out, total };
 }
 
@@ -82,6 +96,7 @@ export function applyChanges(state, changes) {
     for (const [id, r] of up) if (!seen.has(id)) list.push(r);
     next[k] = list;
   }
+  if (changes && changes.levels && Array.isArray(changes.levels.replace)) next.levels = [...changes.levels.replace];
   return next;
 }
 
@@ -91,7 +106,11 @@ const conflictKey = (c) =>
     ? `hours:${c.groupId}|${c.subjectId}`
     : `${c.type}:${[c.entryId, c.otherEntryId].filter(Boolean).sort().join('|')}`;
 
-const REPAIR = new Set(['entry.remove', 'entry.removeMany', 'entry.move', 'group.delete', 'subject.delete', 'subject.upsert']);
+// level.* ไม่เปลี่ยนจำนวนคาบ/การชน (rename cascade ตรงกันทุกที่) จึงทำได้แม้ข้อมูลเดิมผิดกฎ ตราบที่ไม่เกิดรายการผิดใหม่/แย่ลง (เงื่อนไขเดียวกับ op ซ่อมอื่น)
+const REPAIR = new Set([
+  'entry.remove', 'entry.removeMany', 'entry.move', 'group.delete', 'subject.delete', 'subject.upsert',
+  'level.add', 'level.rename', 'level.remove', 'level.move',
+]);
 
 function conflictError(c) {
   const e = { type: c.type, message: c.message };
@@ -350,6 +369,83 @@ function entryChange(state, op, move) {
   return finish(state, { ...state, entries: state.entries.map((e) => (e.id === entry.id ? updated : e)) }, op, { warnings: r.warnings });
 }
 
+// ---------- ระดับ (state.levels) ----------
+// level.add {name} · level.rename {from,to} (cascade วิชา/กลุ่ม/แผน ใน op เดียว) · level.remove {name} (ปฏิเสธถ้ายังมีใช้อยู่) · level.move {name,toIndex}
+// ชื่อจากผู้ใช้ถูกทำให้อยู่ในรูปปกติ (NFC, ตัดอักขระควบคุม/กำกับทิศทาง/zero-width, trim) ก่อนตรวจ และมี warning ถ้าตัดอักขระอันตรายออก
+// state ที่ยังไม่มี levels (v4 ที่ส่งมาตรง ๆ) → ใช้ระดับที่ derive ได้ (ค่าเริ่มต้น + ที่มีใช้อยู่) ไม่ใช่รายการว่าง
+const levelsOf = (state) => (Array.isArray(state.levels) ? state.levels : deriveLevels(state));
+
+function levelName(raw, field, notes) {
+  if (typeof raw !== 'string') return { error: err('invalid', `ต้องระบุ ${field} เป็นข้อความ`, { field }) };
+  const name = normalizeLevelName(raw);
+  const issue = levelNameIssue(name);
+  if (issue) return { error: err('invalid', issue, { field }) };
+  if (hasUnsafeChars(raw)) notes.push(`ตัดอักขระควบคุม/กำกับทิศทาง/zero-width ออกจากชื่อระดับ "${name}"`);
+  return { name };
+}
+
+// หาระดับที่มีอยู่จริงจากชื่อที่ผู้ใช้ส่งมา (ต้องตรงตัวหลังทำให้เป็นรูปปกติ)
+const findLevel = (state, raw) => {
+  const n = typeof raw === 'string' ? normalizeLevelName(raw) : '';
+  return levelsOf(state).includes(n) ? n : null;
+};
+
+function levelAdd(state, op) {
+  const notes = [];
+  const r = levelName(op.name, 'name', notes);
+  if (r.error) return fail(r.error);
+  const list = levelsOf(state);
+  if (list.some((l) => levelKey(l) === levelKey(r.name))) return fail(err('duplicate', `ระดับ "${r.name}" มีอยู่แล้ว`, { field: 'name' }));
+  if (list.length >= MAX_LEVELS) return fail(err('invalid', `ระดับมีได้ไม่เกิน ${MAX_LEVELS} ระดับ`, { field: 'name' }));
+  return finish(state, { ...state, levels: [...list, r.name] }, op, { warnings: notes });
+}
+
+function levelRename(state, op) {
+  const from = findLevel(state, op.from);
+  if (from === null) return fail(err('notfound', `ไม่พบระดับ "${String(op.from)}"`, { field: 'from' }));
+  const notes = [];
+  const r = levelName(op.to, 'to', notes);
+  if (r.error) return fail(r.error);
+  const list = levelsOf(state);
+  if (r.name === from) return finish(state, state, op); // ชื่อเดิม = ไม่ทำอะไร
+  if (list.some((l) => l !== from && levelKey(l) === levelKey(r.name))) {
+    return fail(err('duplicate', `ระดับ "${r.name}" มีอยู่แล้ว (ชื่อซ้ำ)`, { field: 'to' }));
+  }
+  const swap = (l) => (l === from ? r.name : l);
+  const next = {
+    ...state,
+    levels: list.map(swap),
+    subjects: state.subjects.map((s) => (Array.isArray(s.levels) && s.levels.includes(from) ? { ...s, levels: s.levels.map(swap) } : s)),
+    groups: state.groups.map((g) => (g.level === from ? { ...g, level: r.name } : g)),
+    plans: state.plans.map((p) => (p.level === from ? { ...p, level: r.name } : p)),
+  };
+  return finish(state, next, op, { warnings: notes });
+}
+
+function levelRemove(state, op) {
+  const name = findLevel(state, op.name);
+  if (name === null) return fail(err('notfound', `ไม่พบระดับ "${String(op.name)}"`, { field: 'name' }));
+  const u = levelUsage(state, name);
+  if (u.total > 0) {
+    return fail(err('in_use', `ลบระดับ "${name}" ไม่ได้ เพราะยังถูกใช้อยู่ (วิชา ${u.subjects} รายการ, กลุ่มเรียน ${u.groups} กลุ่ม, แผนการเรียน ${u.plans} แผน) — ย้ายหรือลบรายการเหล่านั้นก่อน`, {
+      field: 'name', subjects: u.subjects, groups: u.groups, plans: u.plans, total: u.total,
+    }));
+  }
+  return finish(state, { ...state, levels: levelsOf(state).filter((l) => l !== name) }, op);
+}
+
+function levelMove(state, op) {
+  const name = findLevel(state, op.name);
+  if (name === null) return fail(err('notfound', `ไม่พบระดับ "${String(op.name)}"`, { field: 'name' }));
+  const list = levelsOf(state);
+  if (!Number.isInteger(op.toIndex) || op.toIndex < 0 || op.toIndex >= list.length) {
+    return fail(err('invalid', `toIndex ต้องเป็นจำนวนเต็ม 0–${list.length - 1}`, { field: 'toIndex' }));
+  }
+  const rest = list.filter((l) => l !== name);
+  rest.splice(op.toIndex, 0, name);
+  return finish(state, { ...state, levels: rest }, op);
+}
+
 // ---------- state.import ----------
 function importOp(state, op) {
   const trim = op.trimOverHours === true;
@@ -386,6 +482,17 @@ function importOp(state, op) {
           : [...list, { ...(DEFAULTS[k] ? DEFAULTS[k]() : {}), ...picked }];
       }
       next[k] = list;
+    }
+    // patch.levels = "ให้มีระดับเหล่านี้" — เพิ่มเฉพาะชื่อที่ยังไม่มี (ไม่ลบ/ไม่จัดลำดับใหม่) ชื่อผิดรูปแบบ = ปฏิเสธทั้งชุด
+    if (op.patch.levels !== undefined) {
+      if (!Array.isArray(op.patch.levels)) return fail(err('invalid', 'patch.levels ต้องเป็นรายการ'));
+      const merged = [...levelsOf(state)];
+      for (const raw of op.patch.levels) {
+        const r = levelName(raw, 'patch.levels', patchNotes);
+        if (r.error) return fail(r.error);
+        if (!merged.some((l) => levelKey(l) === levelKey(r.name))) merged.push(r.name);
+      }
+      next.levels = merged;
     }
   } else {
     return fail(err('invalid', 'state.import ต้องระบุ state, patch หรือ rows อย่างใดอย่างหนึ่ง'));
@@ -432,6 +539,10 @@ export function applyOp(state, op) {
       bad = needId(op, 'entryId') || exists(state.entries, op.entryId, 'คาบที่เลือก');
       return bad || finish(state, { ...state, entries: state.entries.filter((e) => e.id !== op.entryId) }, op);
     }
+    case 'level.add': return levelAdd(state, op);
+    case 'level.rename': return levelRename(state, op);
+    case 'level.remove': return levelRemove(state, op);
+    case 'level.move': return levelMove(state, op);
     case 'state.import': return importOp(state, op);
     default: return fail(err('unknown_op', `ไม่รู้จัก op "${op.type}"`));
   }

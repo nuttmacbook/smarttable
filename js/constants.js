@@ -1,6 +1,6 @@
 // ค่าคงที่ของระบบตารางเรียนตารางสอน (ศธ.02 / สอศ.)
 
-export const STATE_VERSION = 4;
+export const STATE_VERSION = 5;
 
 export const DAYS = [
   { id: 1, name: 'จันทร์', short: 'จ' },
@@ -32,8 +32,11 @@ export const SUBJECT_TYPES = [
   { id: 'vocational', name: 'วิชาชีพ' },
 ];
 
-// ระดับ (รวมชั้นปีแล้ว) ปวช.1-3 เป็นหลัก ปวส. คงไว้ให้ข้อมูลเดิม migrate ได้
-export const LEVELS = ['ปวช.1', 'ปวช.2', 'ปวช.3', 'ปวส.1', 'ปวส.2'];
+// ระดับ: แอดมินกำหนดเองได้ (state.levels, v5) — นี่คือค่าเริ่มต้นของระบบใหม่/ข้อมูลเก่าที่ migrate มาเท่านั้น
+// ห้ามใช้เป็นรายการตรวจสอบ/ตัวเลือกใน UI (ใช้ state.levels) · ข้อจำกัดชื่อระดับดู isValidLevelName ใน store.js
+export const DEFAULT_LEVELS = Object.freeze(['ปวช.1', 'ปวช.2', 'ปวช.3', 'ปวส.1', 'ปวส.2']);
+export const MAX_LEVELS = 30;
+export const LEVEL_NAME_MAX = 20;
 
 export const dayName = (id) => DAYS.find((d) => d.id === id)?.name ?? String(id);
 export const periodById = (id) => PERIODS.find((p) => p.id === id);

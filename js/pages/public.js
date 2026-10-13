@@ -58,9 +58,11 @@ export function renderPublic(root) {
       <fieldset class="chip-group" aria-label="ประเภท">
         ${kinds.map((k) => `<label class="chip"><input type="radio" name="pub-kind" value="${esc(k)}"${k === p.kind ? ' checked' : ''}><span>${esc(KIND_LABEL[k])}</span></label>`).join('')}
       </fieldset>
+      ${ctx.hideTeachers ? '<span class="field-hint">ซ่อนรายชื่อครู จึงไม่มีตารางรายครู</span>' : ''}
       <div id="pick-root"></div>
     </div>
-    <div class="public-title"><h2>${esc(view.title)}</h2><span class="badge badge-readonly">โหมดดูอย่างเดียว</span>${ctx.hideTeachers ? ' <span class="badge badge-hidden-teachers">ไม่แสดงชื่อครู</span>' : ''}</div>
+    <div class="public-title"><h2>${esc(view.title)}</h2><span class="badge badge-readonly">โหมดดูอย่างเดียว</span>${ctx.hideTeachers ? ' <span class="badge badge-hidden-teachers">ไม่แสดงรายชื่อครู</span>' : ''}</div>
+    ${ctx.hideTeachers ? '<p class="text-muted hidden-teachers-note">ชื่อครูที่พิมพ์อยู่ในชื่อวิชา ห้อง หรือกลุ่มอาจยังเห็นได้</p>' : ''}
     <p class="text-muted view-meta">${esc(view.meta)}</p>
     <div class="row">${printBtn}<button type="button" class="btn" id="pub-xlsx">ส่งออก Excel</button><button type="button" class="btn" id="pub-pdf">ส่งออก PDF</button></div>
     <div id="pub-msg" aria-live="polite"></div>
@@ -91,7 +93,7 @@ export function renderPublic(root) {
     try {
       const ex = await import('../export/index.js');
       const fn = format === 'pdf' ? ex.exportPdf : ex.exportXlsx;
-      const out = await fn(ctx.state, { kind: EXPORT_KIND[p.kind], mode: 'one', ids: [p.id] }, { printedAt: new Date() });
+      const out = await fn(ctx.state, { kind: EXPORT_KIND[p.kind], mode: 'one', ids: [p.id] }, { printedAt: new Date(), ...(ctx.hideTeachers ? { hideTeacherNames: true } : {}) });
       downloadBlob(out.blob, out.fileName);
       toast('สร้างไฟล์เรียบร้อย');
     } catch (err) {

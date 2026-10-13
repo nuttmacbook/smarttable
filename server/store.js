@@ -5,6 +5,7 @@
 //   tt:v                 จำนวนเต็ม version (INCR ในสคริปต์ CAS เท่านั้น)
 //   tt:meta              {"stateVersion":4,"updatedAt":ISO}
 //   tt:subjects|teachers|groups|rooms|plans   JSON array
+//   tt:levels            JSON array ของชื่อระดับ (v5) · ไม่มี key (ฐานข้อมูลรุ่น v4) → loadAll สร้างด้วย deriveLevels แล้วเขียน key นี้ในการเขียนครั้งแรก
 //   tt:entries:<groupId> JSON array ของคาบทั้งหมดของกลุ่มนั้น (ไม่ชนเพดาน 1 MB ต่อคำสั่ง · op หนึ่งครั้งเขียนแค่กลุ่มที่เปลี่ยน)
 //   tt:shares (HASH)     shareId → {hash, scope, label, createdAt, expiresAt}      ← ดัชนีลิงก์ (list/revoke/regenerate)
 //   share:<sha256>       {id, scope, label, createdAt, expiresAt}                  ← ทางเข้าของผู้ดู (ไม่มี plaintext token)
@@ -17,7 +18,7 @@ import { HttpError } from './http.js';
 import { CAS_LUA, AUDIT_MAX } from './redis.js';
 import { ipFingerprint } from './auth.js';
 import { STATE_VERSION } from '../js/constants.js';
-import { emptyState } from '../js/store.js';
+import { emptyState, deriveLevels, migrateState } from '../js/store.js';
 import { applyOp, diffState } from '../js/ops.js';
 import { effectiveTeacherId } from '../js/scheduler.js';
 
@@ -25,6 +26,9 @@ const V_KEY = 'tt:v';
 const META_KEY = 'tt:meta';
 const COLLECTIONS = ['subjects', 'teachers', 'groups', 'rooms', 'plans'];
 const KEY = Object.fromEntries(COLLECTIONS.map((k) => [k, `tt:${k}`]));
+const LEVELS_KEY = 'tt:levels'; // v5: รายชื่อระดับที่แอดมินกำหนด (JSON array ของ string) — เก็บแยกจาก collection เพราะไม่ใช่รายการ object
+// คีย์ระดับบนสุดของ state ที่เซิร์ฟเวอร์เก็บลง Redis ได้ — คีย์อื่นที่โผล่ใน state (เช่นฟีเจอร์ใหม่) ต้องเพิ่มที่นี่พร้อมวิธีเก็บ ไม่งั้น planWrites ปฏิเสธ (กัน "op สำเร็จแต่ข้อมูลหาย")
+const PERSISTED_TOP_KEYS = new Set(['version', 'entries', 'levels', ...COLLECTIONS]);
 const ID_RE = /^[A-Za-z0-9_-]{1,64}$/;
 const entriesKey = (groupId) => `tt:entries:${groupId}`;
 
@@ -53,6 +57,14 @@ function parseList(text, what) {
   return v;
 }
 
+function parseLevelsList(text) {
+  if (text === null || text === undefined) return null; // ยังไม่มี key (ฐานข้อมูลรุ่นก่อน v5)
+  let v;
+  try { v = JSON.parse(text); } catch { v = null; }
+  if (!Array.isArray(v) || v.some((x) => typeof x !== 'string')) throw new Error('ข้อมูล levels ใน Redis เสีย');
+  return v;
+}
+
 /** version ปัจจุบัน (ไม่มี key = 0) */
 export async function getVersion(redis) {
   const v = await redis.get(V_KEY);
@@ -72,15 +84,27 @@ export async function loadAll(redis) {
     if (!Number.isInteger(version) || version < 0) throw new Error('tt:v ไม่ใช่จำนวนเต็ม');
     if (version === 0) return { version: 0, state: null };
 
-    const cols = await redis.mget(...COLLECTIONS.map((k) => KEY[k]));
+    const cols = await redis.mget(...COLLECTIONS.map((k) => KEY[k]), LEVELS_KEY);
     const state = { version: STATE_VERSION };
     COLLECTIONS.forEach((k, i) => { state[k] = parseList(cols[i], k); });
+    const storedLevels = parseLevelsList(cols[COLLECTIONS.length]);
+    const levelsPersisted = storedLevels !== null;
+    if (levelsPersisted) state.levels = storedLevels;
     const groupIds = state.groups.map((g) => g.id).filter((id) => ID_RE.test(String(id)));
     const perGroup = groupIds.length ? await redis.mget(...groupIds.map(entriesKey)) : [];
     const v2 = await redis.get(V_KEY);
     if (v2 !== v1) continue; // มีคนเขียนระหว่างอ่าน → อ่านใหม่
     state.entries = perGroup.flatMap((text, i) => parseList(text, `entries ของกลุ่ม ${groupIds[i]}`));
-    return { version, state };
+    if (levelsPersisted) return { version, state, levelsPersisted };
+    // ไม่มี key (ฐานข้อมูลรุ่น v4) → อัปเกรดในหน่วยความจำด้วย migrateState (v4→v5: levels = ค่าเริ่มต้น + ระดับที่มีใช้ และแก้ชื่อระดับผิดรูปให้ตรงกัน — โดม)
+    // storedState = สิ่งที่อยู่ใน Redis จริง (ไม่มี levels) ให้ planWrites เทียบกับมัน → การเขียนครั้งแรกที่มีการเปลี่ยนแปลงจะเขียน tt:levels
+    // และ collection/entries ที่ migrate ปรับ (เช่นแก้ชื่อระดับผิดรูป) ใน CAS เดียวกัน ไม่ทิ้ง levels ใหม่คู่กับข้อมูลเก่าที่ไม่ตรงกัน · ถ้า migrate ล้ม ถอยไป deriveLevels
+    let upgraded;
+    try {
+      const m = migrateState({ version: 4, subjects: state.subjects, teachers: state.teachers, groups: state.groups, rooms: state.rooms, plans: state.plans, entries: state.entries });
+      upgraded = m && Array.isArray(m.levels) ? { ...m, version: STATE_VERSION } : null;
+    } catch { upgraded = null; }
+    return { version, state: upgraded ?? { ...state, levels: deriveLevels(state) }, levelsPersisted, storedState: state };
   }
   throw busyError();
 }
@@ -98,12 +122,23 @@ function entriesByGroup(state) {
   return map;
 }
 
-/** รายการเขียน [{key, value|null}] ที่ต้องทำเพื่อเปลี่ยนจาก before (หรือ null = ว่าง) เป็น after — เฉพาะ key ที่เปลี่ยน + tt:meta */
-export function planWrites(before, after) {
+/** ทุกคีย์ระดับบนสุดของ state ต้องเป็นชนิดที่เซิร์ฟเวอร์รู้วิธีเก็บ — ไม่งั้น throw (ดีกว่าเขียนสำเร็จแล้วข้อมูลหายเงียบ ๆ) */
+function assertPersistable(state) {
+  const unknown = Object.keys(state ?? {}).filter((k) => !PERSISTED_TOP_KEYS.has(k));
+  if (unknown.length) throw new Error(`state มีคีย์ที่เซิร์ฟเวอร์ยังไม่รู้วิธีเก็บ: ${unknown.join(', ')}`);
+}
+
+/**
+ * รายการเขียน [{key, value|null}] ที่ต้องทำเพื่อเปลี่ยนจาก before (หรือ null = ว่าง) เป็น after — เฉพาะ key ที่เปลี่ยน + tt:meta
+ * levelsPersisted:false (ฐานข้อมูลรุ่นก่อน v5 ยังไม่มี tt:levels) → เขียน tt:levels ด้วยในการเขียนครั้งแรกที่มีการเปลี่ยนแปลงอื่น (op ที่ไม่เปลี่ยนอะไรยังไม่เขียน)
+ */
+export function planWrites(before, after, { levelsPersisted = true } = {}) {
+  assertPersistable(after);
   const writes = [];
   for (const k of COLLECTIONS) {
     if (!before || json(before[k]) !== json(after[k])) writes.push({ key: KEY[k], value: json(after[k]) });
   }
+  const levelsChanged = Array.isArray(after.levels) && (!before || json(before.levels) !== json(after.levels));
   const beforeBy = before ? entriesByGroup(before) : new Map();
   const afterBy = entriesByGroup(after);
   for (const [gid, list] of afterBy) {
@@ -116,8 +151,19 @@ export function planWrites(before, after) {
   for (const [gid, prev] of beforeBy) {
     if (!afterBy.has(gid) && prev.length > 0) writes.push({ key: entriesKey(gid), value: null }); // กลุ่มถูกลบ
   }
+  if (Array.isArray(after.levels) && (levelsChanged || (!levelsPersisted && writes.length > 0))) writes.push({ key: LEVELS_KEY, value: json(after.levels) });
   if (writes.length > 0) writes.push({ key: META_KEY, value: json({ stateVersion: STATE_VERSION, updatedAt: new Date().toISOString() }) });
   return writes;
+}
+
+/**
+ * การเขียนที่ต้องทำเพื่อไปสู่ state ใหม่จากที่ loadAll อ่านมา
+ *  - ไม่มีการเปลี่ยนแปลงจริงเมื่อเทียบกับ state ที่อัปเกรดแล้ว (noop) → ไม่เขียนอะไรเลย แม้ฐานยังเป็นรุ่น v4 (op ที่ไม่เปลี่ยนอะไรต้องไม่ขยับ version)
+ *  - มีการเปลี่ยนแปลงจริง → เทียบกับ storedState (ของจริงใน Redis) เพื่อเขียน tt:levels + ส่วนที่ migrate ปรับ ใน CAS เดียวกัน
+ */
+function planFor(cur, after) {
+  if (planWrites(cur.state, after).length === 0) return [];
+  return planWrites(cur.storedState ?? cur.state, after, { levelsPersisted: cur.levelsPersisted });
 }
 
 const modeOf = (w) => w.mode ?? (w.value === null ? 'D' : 'S');
@@ -270,7 +316,10 @@ const toHttpErrors = (errors, result = {}) => {
   return new HttpError(unknown ? 400 : 422, unknown ? 'unknown_op' : 'invalid', unknown ? 'ไม่รู้จัก op นี้' : 'ข้อมูลไม่ผ่านการตรวจสอบ', { errors, ...detail });
 };
 
-const summarize = (changes) => Object.fromEntries(Object.entries(changes).map(([k, c]) => [k, { upsert: c.upsert.length, remove: c.remove.length }]));
+// changes.levels (v5) ไม่ใช่แถวมี id: รูป { replace:[ชื่อระดับทั้งหมดใหม่] } → รายงาน replace=จำนวนระดับใหม่ (คง upsert/remove = 0 ให้รูปเดียวกับ collection อื่น)
+const summarize = (changes) => Object.fromEntries(Object.entries(changes).map(([k, c]) => [k, Array.isArray(c?.replace)
+  ? { upsert: 0, remove: 0, replace: c.replace.length }
+  : { upsert: c.upsert.length, remove: c.remove.length }]));
 
 /**
  * ใช้ op กับ state ปัจจุบันแล้วเขียนแบบ CAS (พร้อม audit; ลิงก์ของเอนทิตีที่ถูกลบถูกเพิกถอนใน CAS เดียวกัน;
@@ -288,7 +337,7 @@ export async function runOp(redis, ctx, op, baseVersion, { dryRun = false } = {}
     if (!result.ok) throw toHttpErrors(result.errors, result);
     // op หลายช่องที่มี dryRun:true ใน op เอง (result.dryRun) = ตรวจอย่างเดียว เหมือน dryRun ระดับคำขอ: ไม่เขียน/ไม่เพิ่ม version/ไม่เขียน audit
     if (result.dryRun === true) dryRun = true;
-    const writes = planWrites(cur.state, result.state);
+    const writes = planFor(cur, result.state);
     const summary = summarize(result.changes);
     const destructive = op.type === 'state.import' && (op.state !== undefined || op.trimOverHours === true) && cur.state !== null;
     const gen = await getShareGen(redis); // ต้องอ่านก่อนอ่านดัชนีลิงก์
@@ -328,7 +377,7 @@ export async function replaceAll(redis, ctx, nextState, { force = false, dryRun 
     if (cur.version !== 0 && !force) {
       throw new HttpError(409, 'not_empty', 'ฐานข้อมูลมีข้อมูลอยู่แล้ว ต้องยืนยันการเขียนทับ (force)', { latestVersion: cur.version });
     }
-    const writes = planWrites(cur.state, nextState);
+    const writes = planFor(cur, nextState);
     const summary = summarize(diffState(cur.state ?? emptyState(), nextState));
     const destructive = cur.state !== null;
     const gen = await getShareGen(redis);
@@ -375,6 +424,7 @@ export function viewFor(state, scope) {
   const subjects = state.subjects.filter((s) => subjectIds.has(s.id)).map((s) => ({ ...s, teacherIds: (s.teacherIds ?? []).filter((t) => teacherIds.has(t)) }));
   return {
     version: state.version,
+    ...(Array.isArray(state.levels) ? { levels: [...state.levels] } : {}), // รายชื่อระดับ (v5) ส่งครบ: ไม่ใช่ข้อมูลส่วนบุคคล และไคลเอนต์ใช้ตรวจ/เรียงกลุ่ม
     subjects,
     teachers: state.teachers.filter((t) => teacherIds.has(t.id)),
     groups: state.groups.filter((g) => groupIds.has(g.id)).map((g) => ({ ...g, subjectIds: (g.subjectIds ?? []).filter((s) => subjectIds.has(s)), planId: null })),

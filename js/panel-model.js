@@ -2,6 +2,8 @@
 // แต่ละแถว: ต้องเรียน (hours) / จัดแล้ว / เหลือ / สถานะ ('todo' | 'partial' | 'done' | 'over')
 // เรียง: เหลือ > 0 ก่อน (เหลือมาก→น้อย แล้วตามรหัส) · ครบ (done) ต่อท้าย · เกิน (over) อยู่ก่อนวิชาที่ครบ
 
+import { checkPlacement } from './scheduler.js';
+
 const byCode = (a, b) => String(a.subject.code).localeCompare(String(b.subject.code), 'th');
 
 export function subjectProgress(state, group, subject) {
@@ -44,3 +46,45 @@ export const STATUS_TEXT = {
   done: 'เสร็จ ✓',
   over: 'เกิน',
 };
+
+// ---------- ช่องที่ลงวิชาที่เลือกไม่ได้ (ไฮไลต์แดงในหน้าจัดตาราง) ----------
+// ใช้ checkPlacement ของ scheduler.js ตัวเดียวกับตอนวางจริง/เซิร์ฟเวอร์ (ไม่เขียนกฎซ้ำ) — pure ไม่แตะ DOM
+// คืน Map<'day:period', { types:[ชนิดชน], reason:'ข้อความสั้น' }> เฉพาะช่องว่างของกลุ่มที่ลงไม่ได้ (ช่องที่มีวิชาแล้วไม่นับ)
+// reason เป็นข้อความสั้นตายตัว ไม่มีชื่อครู/ห้อง/วิชา (ไม่รั่วข้อมูล)
+// วิชาหลายครูและยังไม่เลือกครู: แดงเมื่อ "ครูทุกคน" ชน (ลงได้ถ้ามีครูอย่างน้อย 1 คนว่าง)
+const BLOCK_LABEL = { teacher: 'ชนครู', classroom: 'ชนห้อง', hours: 'ชั่วโมงเต็ม', level: 'ระดับไม่ตรง', lunch: 'พักเที่ยง', invalid: 'ลงไม่ได้', group: 'มีวิชาแล้ว' };
+export const blockLabel = (type) => BLOCK_LABEL[type] ?? 'ลงไม่ได้';
+
+export function blockedCells(state, { groupId, subjectId, teacherId, roomId } = {}) {
+  const out = new Map();
+  const subject = (state.subjects || []).find((s) => s.id === subjectId);
+  const group = (state.groups || []).find((g) => g.id === groupId);
+  if (!subject || !group) return out;
+  const tids = Array.isArray(subject.teacherIds) ? subject.teacherIds : [];
+  const occupied = new Set();
+  for (const e of state.entries || []) if (e.groupId === groupId) occupied.add(`${e.day}:${e.period}`);
+  for (let day = 1; day <= 5; day += 1) {
+    for (let period = 1; period <= 11; period += 1) {
+      const key = `${day}:${period}`;
+      if (occupied.has(key)) continue;
+      const base = { groupId, day, period, subjectId, ...(roomId ? { roomId } : {}) };
+      const types = checkPlacement(state, { ...base, ...(teacherId ? { teacherId } : {}) }).conflicts.map((c) => c.type);
+      if (!teacherId && tids.length >= 2 && !types.includes('teacher')
+        && tids.every((tid) => checkPlacement(state, { ...base, teacherId: tid }).conflicts.some((c) => c.type === 'teacher'))) types.push('teacher');
+      if (!types.length) continue;
+      const uniq = [...new Set(types)];
+      out.set(key, { types: uniq, reason: uniq.slice(0, 2).map(blockLabel).join(' · ') });
+    }
+  }
+  return out;
+}
+
+// คำนวณครั้งเดียวต่อการเปลี่ยนตัวเลือก: จำผลล่าสุดตาม (state เดิม, กลุ่ม, วิชา, ครู, ห้อง) — state ใหม่หลัง op/โหลดใหม่ = คำนวณใหม่
+let blockedMemo = null;
+export function cachedBlockedCells(state, sel) {
+  const k = [sel.groupId, sel.subjectId, sel.teacherId || '', sel.roomId || ''].join('\u0000');
+  if (blockedMemo && blockedMemo.state === state && blockedMemo.k === k) return blockedMemo.map;
+  const map = blockedCells(state, sel);
+  blockedMemo = { state, k, map };
+  return map;
+}

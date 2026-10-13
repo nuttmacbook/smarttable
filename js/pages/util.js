@@ -178,7 +178,7 @@ export function gridHtml(cellFn, { wrapClass = '' } = {}) {
       // (ข้อความในช่องผ่าน esc มาแล้ว; title ตัดแท็กออกเหลือแต่ข้อความ/entity)
       const lvl = fsLevel(titleTextOf(c.html));
       const plain = plainFromHtml(c.html);
-      const title = lvl >= 3 && plain ? ` title="${plain}"` : '';
+      const title = c.title ? ` title="${esc(c.title)}"` : lvl >= 3 && plain ? ` title="${plain}"` : '';
       const type = c.type === 'general' || c.type === 'vocational' ? ` type-${c.type}` : '';
       let h = `<td class="tt-cell ${c.cls}${type} tt-fs-${lvl}"${attrs}${title}>${c.html}</td>`;
       if (p.id === LUNCH.afterPeriod && i === 0) h += `<td class="tt-lunch" rowspan="${DAYS.length}"><span class="tt-lunch-text">พักเที่ยง</span></td>`;
@@ -223,6 +223,7 @@ export function legendHtml(items) {
     conflict: ['is-conflict', 'ชน'],
     level: ['is-level-mismatch', 'ระดับไม่ตรง'],
     lunch: ['is-lunch', 'พักเที่ยง'],
+    blocked: ['is-blocked', 'ลงวิชาที่เลือกไม่ได้ (⊘)'],
   };
   return `<div class="legend" aria-label="คำอธิบายสี">${items
     .map((k) => `<span class="legend-item"><span class="legend-swatch ${all[k][0]}"></span>${all[k][1]}</span>`)

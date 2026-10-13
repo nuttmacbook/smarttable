@@ -1,5 +1,4 @@
 // ข้อมูลหลัก: กลุ่มเรียน (นักเรียนสังกัด) · ห้องเรียน (สถานที่) · ครูผู้สอน — ทุกการแก้ผ่าน op (doOp)
-import { LEVELS } from '../constants.js';
 import { mountTableList, searchSelect } from './list-kit.js';
 import { uid, applyPlan, removeTeacher, removeRoom, removeGroup } from '../store.js';
 import {
@@ -50,7 +49,7 @@ const actions = (id, extra = '') =>
     <button type="button" class="btn btn-sm btn-danger" data-del="${esc(id)}">ลบ</button></td>`);
 
 // ---------- กลุ่มเรียน ----------
-const groupFilters = [{ id: 'level', label: 'ระดับ', options: LEVELS.map((l) => [l, l]), test: (g, v) => g.level === v }];
+const groupFilters = () => [{ id: 'level', label: 'ระดับ', options: ctx.state.levels.map((l) => [l, l]), test: (g, v) => g.level === v }];
 
 export function renderGroups(root) {
   const { state } = ctx;
@@ -66,7 +65,7 @@ export function renderGroups(root) {
   const planName = (g) => byId(ctx.state.plans, g.planId)?.name ?? '';
   mountTableList(root.querySelector('#list-root'), {
     name: 'groups',
-    def: { fields: (g) => [g.name, g.level, g.major, planName(g)], filters: groupFilters, sort: { key: (g) => g.name }, placeholder: 'ค้นหาชื่อกลุ่ม/สาขา/แผน' },
+    def: { fields: (g) => [g.name, g.level, g.major, planName(g)], filters: groupFilters(), sort: { key: (g) => g.name }, placeholder: 'ค้นหาชื่อกลุ่ม/สาขา/แผน' },
     getItems: () => ctx.state.groups,
     headHtml: `<tr><th>ชื่อกลุ่มเรียน</th><th>ระดับ</th><th>สาขาวิชา</th><th>แผนการเรียน</th><th class="col-num">วิชาที่ผูก</th><th class="col-num">คาบที่ลง</th>${editOnly('<th></th>')}</tr>`,
     rowHtml: (g) => {
@@ -93,12 +92,13 @@ export function renderGroups(root) {
 }
 
 export function groupForm(group) {
+  if (!ctx.state.levels?.length) return toast('ยังไม่มีระดับ ไปเพิ่มที่เมนู "ระดับ" ก่อน', 'error');
   const isEdit = Boolean(group);
   const m = openModal({
     title: isEdit ? 'แก้ไขกลุ่มเรียน' : 'เพิ่มกลุ่มเรียน',
     bodyHtml: `<form id="group-form" novalidate><div id="form-errors"></div>
       ${field('ชื่อกลุ่มเรียน', `<input class="input" id="f-name" value="${esc(group?.name)}" placeholder="เช่น ปวช.1/1">`, { required: true, id: 'f-name' })}
-      ${field('ระดับ', `<select class="select" id="f-level">${optionsHtml(LEVELS.map((l) => [l, l]), group?.level || LEVELS[0])}</select>`, { id: 'f-level', hint: 'ใช้ตรวจว่าลงวิชาที่เปิดสอนในระดับนี้ได้หรือไม่' })}
+      ${field('ระดับ', `<select class="select" id="f-level">${optionsHtml(ctx.state.levels.map((l) => [l, l]), group?.level || ctx.state.levels[0])}</select>`, { id: 'f-level', hint: 'ใช้ตรวจว่าลงวิชาที่เปิดสอนในระดับนี้ได้หรือไม่' })}
       ${field('สาขาวิชา', `<input class="input" id="f-major" value="${esc(group?.major)}">`, { id: 'f-major' })}
     </form>`,
     footerHtml: SAVE_BUTTONS,

@@ -62,7 +62,7 @@ async function paintList(root) {
       const st = statusOf(x);
       const id = String(x.id ?? '');
       return `<tr><td>${esc(x.label || '(ไม่มีชื่อ)')}</td>
-        <td><span class="badge badge-scope">${esc(scopeLabel(ctx.state, x.scope))}</span></td>
+        <td><span class="badge badge-scope">${esc(scopeLabel(ctx.state, x.scope))}</span>${x.scope === 'all' ? ' <span class="text-muted">เห็นชื่อครูทั้งหมด ไม่ขึ้นกับการตั้งค่าซ่อน</span>' : ''}</td>
         <td><span class="badge badge-status-${esc(st)}">${esc(STATUS_TEXT[st] ?? st)}</span></td>
         <td>${esc(fmtDate(x.createdAt))}</td><td>${esc(fmtDate(x.expiresAt))}</td>
         <td class="col-actions">

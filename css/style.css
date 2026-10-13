@@ -304,6 +304,8 @@ td.tt-lunch {
 .toast-error { background: var(--st-conflict-fg); }
 
 /* ---------- 11. ป้ายระดับ / chips เลือกหลายค่า ---------- */
+/* ชื่อระดับเป็นข้อความอิสระ (1–20 ตัวอักษร ไม่มีช่องว่างได้ สระ/วรรณยุกต์ซ้อนได้): ตัดบรรทัดในกรอบ ไม่ล้น ไม่ดันปุ่มข้าง ๆ */
+.badge { max-width: 100%; overflow-wrap: anywhere; line-height: 1.6; vertical-align: top; }
 .badge-level { background: #e0e7ff; color: #312e81; }
 .badge-room { background: #ccfbf1; color: #134e4a; }
 .badge-group { background: #f1f5f9; color: #1e293b; border: 1px solid var(--c-border-strong); }
@@ -317,7 +319,9 @@ td.tt-lunch {
   display: inline-block; min-height: 40px; padding: var(--sp-2) var(--sp-4);
   border: 1px solid var(--c-border-strong); border-radius: 999px;
   background: var(--c-surface); color: var(--c-text); font-weight: 600;
+  max-width: 100%; overflow-wrap: anywhere; line-height: 1.5;
 }
+.chip { max-width: 100%; }
 .chip:hover span { background: #eef2f7; }
 .chip input:checked + span { background: var(--c-primary); border-color: var(--c-primary); color: #fff; }
 .chip input:checked + span::before { content: "✓ "; }
@@ -676,9 +680,74 @@ td.tt-lunch { background-image: repeating-linear-gradient(45deg, rgba(51, 65, 85
 .unconfirmed-banner { border-left-width: 8px; font-weight: 600; }
 .unconfirmed-banner::before { content: "⚠ "; }
 .badge-unconfirmed { background: var(--st-warn-bg); color: var(--st-warn-fg); border: 1px dashed var(--st-warn-bd); }
+.hidden-teachers-note { display: block; margin-top: var(--sp-1); font-size: .85rem; color: var(--c-muted); }
+.show-names-warning { margin-top: var(--sp-3); border-left-width: 8px; font-weight: 600; }
+.show-names-warning::before { content: "⚠ "; }
 .badge-hidden-teachers { background: var(--st-ok-bg); color: var(--st-ok-fg); }
 .badge-hidden-teachers::before { content: "🔒 "; }
 .setting-meta { font-size: .85rem; color: var(--c-muted); }
+
+/* ---------- 11.14 SPEC v6 (T66): ช่องที่ลงวิชาที่เลือกไม่ได้ (ไฮไลต์แดง) ----------
+   td.tt-cell.is-free.tt-blocked > .tt-blocked-mark + .tt-blocked-why
+   แยกจาก is-conflict (ขอบทึบ 2px + ป้าย) และ is-level-mismatch (ขอบประ) ด้วย: พื้นแดงอ่อน + ลายตาข่ายทแยงสองทิศ + ขอบจุด 2px + สัญลักษณ์วงกลมขีดฆ่า (วาดด้วย CSS ไม่พึ่งกลิฟ) + ตัวหนา */
+.tt-cell.tt-blocked, .tt-cell.is-blocked {
+  background-color: var(--st-conflict-bg); color: var(--st-conflict-fg); font-weight: 600;
+  border: 2px dotted var(--st-conflict-bd); cursor: help;
+  background-image:
+    repeating-linear-gradient(45deg, rgba(185, 28, 28, .22) 0 1.5px, transparent 1.5px 6px),
+    repeating-linear-gradient(-45deg, rgba(185, 28, 28, .22) 0 1.5px, transparent 1.5px 6px);
+}
+.tt-cell.tt-blocked:hover, .tt-cell.is-blocked:hover { background-color: #fecaca; border-color: var(--st-conflict-fg); color: var(--st-conflict-fg); }
+.tt-blocked-mark {
+  display: inline-block; flex: none; width: 1.15em; height: 1.15em; margin-right: 3px; vertical-align: -0.2em;
+  border: 2px solid currentColor; border-radius: 50%; box-sizing: border-box;
+  background: linear-gradient(135deg, transparent 43%, currentColor 43%, currentColor 57%, transparent 57%);
+}
+/* ข้อความเหตุผลสั้น: วางบนแถบขาวกึ่งทึบ เพื่อให้อ่านผ่าน AA ทับลาย (7f1d1d บนขาว ≈ 10:1) */
+.tt-blocked-why {
+  display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow: hidden; overflow-wrap: anywhere;
+  margin-top: 2px; padding: 0 3px; border-radius: 3px; background: rgba(255, 255, 255, .88); color: var(--st-conflict-fg); font-weight: 700;
+}
+/* ใช้ร่วมกับเลือกหลายช่อง: กรอบ/✓ ของ is-selected ยังซ้อนทับได้ · focus ใช้ขอบส้มเดิม */
+.tt-cell.tt-blocked.is-selected, .tt-cell.is-blocked.is-selected { outline-color: var(--c-primary); }
+.tt-cell.is-blocked.is-skipped { opacity: .8; }
+/* ชื่อคลาสที่ฟ้าใช้จริง: .is-blocked > .tt-cell-blocked(.tt-block-icon ⊘ + .tt-block-text) + .tt-cell-sub.tt-block-reason */
+.tt-cell-blocked { display: flex; align-items: center; gap: 3px; font-weight: 700; }
+.tt-block-icon { flex: none; font-weight: 700; font-size: 1.15em; line-height: 1; }
+.tt-block-reason {
+  margin-top: 2px; padding: 0 3px; border-radius: 3px; background: rgba(255, 255, 255, .88); color: var(--st-conflict-fg); font-weight: 700;
+}
+.legend-swatch.tt-blocked, .legend-swatch.is-blocked {
+  background-color: var(--st-conflict-bg); border: 2px dotted var(--st-conflict-bd);
+  background-image: repeating-linear-gradient(45deg, rgba(185, 28, 28, .3) 0 1.5px, transparent 1.5px 5px), repeating-linear-gradient(-45deg, rgba(185, 28, 28, .3) 0 1.5px, transparent 1.5px 5px);
+}
+
+/* ---------- 11.15 หน้าตั้งค่า: จัดการระดับ ---------- */
+.level-manager { background: var(--c-surface); border: 1px solid var(--c-border); border-radius: var(--radius); padding: var(--sp-4); }
+.level-list { list-style: none; margin: 0 0 var(--sp-3); padding: 0; display: grid; gap: var(--sp-2); }
+.level-row {
+  display: grid; grid-template-columns: 2.2em minmax(120px, 1fr) minmax(150px, auto) auto; align-items: center; gap: var(--sp-3);
+  padding: var(--sp-2) var(--sp-3); border: 1px solid var(--c-border-strong); border-radius: var(--radius-sm); background: #fff;
+}
+.level-index { text-align: center; font-weight: 700; color: var(--c-muted); }
+.level-name { font-weight: 700; overflow-wrap: anywhere; }
+.level-usage { font-size: .88rem; color: var(--c-muted); }
+.level-usage.is-used { color: var(--st-filled-fg); font-weight: 600; }
+.level-usage.is-used::before { content: "● "; }
+.level-actions { display: flex; flex-wrap: wrap; gap: var(--sp-1); justify-content: flex-end; }
+.level-actions .btn { min-height: 40px; min-width: 40px; padding: var(--sp-1) var(--sp-3); }
+.btn-icon { min-width: 40px; padding-left: var(--sp-2); padding-right: var(--sp-2); }
+.level-row.is-editing { border: 2px solid var(--c-primary); background: var(--c-primary-soft); }
+.level-row.is-editing .input { min-height: 40px; width: 100%; }
+/* ลบไม่ได้ (ยังมีการใช้งาน): ขอบซ้ายเหลือง + ข้อความอธิบายใต้แถว + ปุ่มลบ disabled */
+.level-row.is-locked { border-left: 6px solid var(--st-warn-bd); }
+.level-lock-note { grid-column: 2 / -1; margin: 0; font-size: .85rem; font-weight: 600; color: var(--st-warn-fg); }
+.level-lock-note::before { content: "ลบไม่ได้: "; }
+.level-error-note { grid-column: 1 / -1; margin: 0; font-size: .88rem; font-weight: 600; color: var(--c-danger); }
+.level-error-note::before { content: "✖ "; }
+.level-add { display: flex; flex-wrap: wrap; align-items: flex-end; gap: var(--sp-3); padding-top: var(--sp-3); border-top: 1px solid var(--c-border); }
+.level-add .field { margin: 0; flex: 1 1 220px; max-width: 360px; }
+.level-count { font-size: .88rem; color: var(--c-muted); margin-bottom: var(--sp-2); }
 
 /* ทัช/แท็บเล็ต: ปุ่มเล็กขยายเป็น ≥40px */
 @media (pointer: coarse) {
@@ -744,4 +813,12 @@ td.tt-lunch { background-image: repeating-linear-gradient(45deg, rgba(51, 65, 85
   .tt-cell-badge { border-color: #000; background: #fff; }
   .tt-fulltext { columns: 3; font-size: 9px; color: #000; }
   .list-kit-bar, .pager, .multi-bar, .public-bar, .public-footer { display: none !important; }
+  /* ช่องลงไม่ได้ (ขาวดำ): พื้นขาว + ตาข่ายทแยงดำ + ขอบจุดดำ + วงกลมขีดฆ่า — ต่างจากเทา/ลายทแยงทางเดียวของชนิดวิชา */
+  .tt-cell.tt-blocked, .tt-cell.is-blocked {
+    background-color: #fff; border: 2px dotted #000; font-weight: 700;
+    background-image:
+      repeating-linear-gradient(45deg, rgba(0, 0, 0, .45) 0 1px, transparent 1px 5px),
+      repeating-linear-gradient(-45deg, rgba(0, 0, 0, .45) 0 1px, transparent 1px 5px);
+  }
+  .tt-blocked-why, .tt-block-reason { background: #fff; color: #000; }
 }

@@ -220,7 +220,7 @@ export function renderData(root) {
   $('#btn-template').addEventListener('click', async () => {
     try {
       const ex = await import('../export/index.js');
-      const out = await ex.downloadTemplate();
+      const out = await ex.downloadTemplate({ levels: ctx.state.levels });
       downloadBlob(out.blob, out.fileName);
     } catch {
       toast('สร้างเทมเพลตไม่สำเร็จ ชีตที่ใช้: ' + Object.values(IMPORT_SHEETS).join(', '), 'error');

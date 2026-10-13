@@ -95,20 +95,51 @@ class UpstashRedis {
   eval(script, keys, args) { return this.c.eval(script, keys, args); }
 }
 
-/* ---------- เลือก adapter */
-const upstash = { main: null, readOnly: null };
+/* ---------- ตั้งค่าการเชื่อมต่อ (ชื่อ env 2 ชุด) */
+// ชุดหลัก: ตั้งเองตามคู่มือ · ชุดสำรอง: ที่ Vercel สร้างให้เมื่อเชื่อม Upstash ผ่านหน้า Storage/Marketplace (รูปแบบ KV_REST_API_*)
+// ⚠️ ชื่อ KV_REST_API_READ_ONLY_TOKEN มาจากความจำของชื่อที่ Vercel KV/Upstash integration สร้าง — ยังไม่ได้ยืนยันกับบัญชีจริง
+const ENV_SETS = [
+  { name: 'UPSTASH_REDIS_REST_*', url: 'UPSTASH_REDIS_REST_URL', token: 'UPSTASH_REDIS_REST_TOKEN', readOnly: 'UPSTASH_REDIS_REST_READONLY_TOKEN' },
+  { name: 'KV_REST_API_*', url: 'KV_REST_API_URL', token: 'KV_REST_API_TOKEN', readOnly: 'KV_REST_API_READ_ONLY_TOKEN' },
+];
+const envOf = (name) => {
+  const v = process.env[name];
+  return typeof v === 'string' && v.trim() !== '' ? v.trim() : '';
+};
 
 /**
- * คืน Redis adapter (สร้างครั้งเดียวต่ออินสแตนซ์) จาก UPSTASH_REDIS_REST_URL / UPSTASH_REDIS_REST_TOKEN (ขาด → ConfigError)
- *  - readOnly:true (เส้นทางผู้ดู, W-16) ใช้ UPSTASH_REDIS_REST_READONLY_TOKEN ถ้ามี (ไม่มี = ใช้ token หลัก) — ใช้อ่านอย่างเดียวเท่านั้น
+ * เลือกชุดตัวแปรเชื่อมต่อ — ลำดับ: UPSTASH_REDIS_REST_* ก่อน ถ้า "ไม่ตั้งเลย" (ทั้ง URL และ TOKEN ว่าง) ค่อยใช้ KV_REST_API_*
+ *  - ใช้ URL + token (+ read-only token) จาก **ชุดเดียวกัน** เท่านั้น ไม่ผสมข้ามชุด
+ *  - ชุดที่ตั้งไม่ครบ (มี URL ไม่มี TOKEN หรือกลับกัน) = ConfigError ทันที ไม่ตกไปใช้อีกชุดเงียบ ๆ (กันชี้ผิดฐาน)
+ *  - ไม่มีทั้งสองชุด = ConfigError ที่ระบุชื่อตัวแปรทั้งสองชุด · ข้อความไม่มีค่าจริงของ env
+ * @returns {{set:string, url:string, token:string, readOnlyToken:string}}
+ */
+export function resolveRedisConfig() {
+  for (const s of ENV_SETS) {
+    const url = envOf(s.url);
+    const token = envOf(s.token);
+    if (!url && !token) continue;
+    if (!url || !token) throw new ConfigError(`ชุด ${s.name} ตั้งไม่ครบ: ต้องมีทั้ง ${s.url} และ ${s.token}`);
+    return { set: s.name, url, token, readOnlyToken: envOf(s.readOnly) };
+  }
+  throw new ConfigError(`ต้องตั้ง UPSTASH_REDIS_REST_URL + UPSTASH_REDIS_REST_TOKEN (หรือชุดที่ Vercel สร้างให้: KV_REST_API_URL + KV_REST_API_TOKEN)`);
+}
+
+/* ---------- เลือก adapter */
+const upstash = new Map();
+
+/**
+ * คืน Redis adapter (สร้างครั้งเดียวต่อชุดค่า/อินสแตนซ์) จากชุดตัวแปรตาม resolveRedisConfig()
+ *  - readOnly:true (เส้นทางผู้ดู, W-16) ใช้ read-only token ของชุดที่เลือกถ้ามี (ไม่มี = ใช้ token หลัก) — ใช้อ่านอย่างเดียวเท่านั้น
  */
 export async function getRedis({ readOnly = false } = {}) {
-  const slot = readOnly && process.env.UPSTASH_REDIS_REST_READONLY_TOKEN ? 'readOnly' : 'main';
-  if (upstash[slot]) return upstash[slot];
-  const url = process.env.UPSTASH_REDIS_REST_URL;
-  const token = slot === 'readOnly' ? process.env.UPSTASH_REDIS_REST_READONLY_TOKEN : process.env.UPSTASH_REDIS_REST_TOKEN;
-  if (!url || !token) throw new ConfigError('ต้องตั้ง UPSTASH_REDIS_REST_URL และ UPSTASH_REDIS_REST_TOKEN');
+  const cfg = resolveRedisConfig();
+  const useReadOnly = readOnly && cfg.readOnlyToken !== '';
+  const token = useReadOnly ? cfg.readOnlyToken : cfg.token;
+  const cacheKey = `${cfg.url}\n${token}`; // ค่า env เปลี่ยนระหว่างอายุโปรเซส (ไม่เกิดบน Vercel) ก็ไม่ใช้ client เก่า
+  if (upstash.has(cacheKey)) return upstash.get(cacheKey);
   const { Redis } = await import('@upstash/redis'); // โหลดเฉพาะตอนใช้จริง (cold start ของ endpoint ที่ไม่แตะ Redis เร็วขึ้น)
-  upstash[slot] = new UpstashRedis(new Redis({ url, token, automaticDeserialization: false }));
-  return upstash[slot];
+  const client = new UpstashRedis(new Redis({ url: cfg.url, token, automaticDeserialization: false }));
+  upstash.set(cacheKey, client);
+  return client;
 }

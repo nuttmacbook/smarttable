@@ -69,7 +69,7 @@
 
 ### 2.5 นำเข้า / ส่งออก / ค้นหา / พิมพ์
 17. **นำเข้า Excel (.xlsx)** 5 ชีตหัวคอลัมน์ภาษาไทยตายตัว (`รายวิชา`, `ครูผู้สอน`, `ห้องเรียน`, `กลุ่มเรียน`, `แผนการเรียน`; ชีตเทมเพลตมี `วิธีใช้` เพิ่มซึ่งถูกข้าม) · **merge ตามคีย์** (รหัสวิชา / ชื่อครู / ชื่อห้อง / ชื่อกลุ่ม / ชื่อแผน): ตรงกัน = อัปเดตช่องที่กรอก (ว่าง = ไม่ทับ) ไม่ตรง = เพิ่มใหม่ · **ไม่ลบอะไร** · **รายงานแถวผิดก่อนยืนยัน** (ชีต/แถว/คอลัมน์/ระดับ error-warning-info) · มี error ≥1 = ยืนยันไม่ได้ · atomic ทั้งก้อน · มีปุ่มดาวน์โหลดเทมเพลต · จำกัด ≤5 MB, ≤5,000 แถว/ชีต, เซลล์ ≤500 ตัวอักษร · ตรวจไฟล์ zip ก่อนอ่าน (`zip-guard`: กัน zip bomb/macro/path traversal) · **เซิร์ฟเวอร์ไม่ parse .xlsx** (ไคลเอนต์อ่านแล้วส่ง rows ให้ตรวจซ้ำ)
-18. **นำเข้า/ส่งออก JSON** (หน้า "ข้อมูล") — migrate ไฟล์ v1/v2/v3 → v4 ให้อัตโนมัติ (นี่คือทางย้ายข้อมูลเดิมจากระบบรุ่นเก่า); ก่อนแทนที่ข้อมูลทั้งก้อนสำรอง JSON ฝั่งไคลเอนต์ + snapshot ฝั่งเซิร์ฟเวอร์
+18. **นำเข้า/ส่งออก JSON** (หน้า "ข้อมูล") — migrate ไฟล์ v1–v4 → v5 ให้อัตโนมัติ (นี่คือทางย้ายข้อมูลเดิมจากระบบรุ่นเก่า); ก่อนแทนที่ข้อมูลทั้งก้อนสำรอง JSON ฝั่งไคลเอนต์ + snapshot ฝั่งเซิร์ฟเวอร์
 19. **ส่งออก/พิมพ์ .xlsx และ .pdf** รายครู / รายห้องเรียน / รายกลุ่มเรียน เลือกได้: รายการเดียว / หลายรายการ / ทั้งหมดของประเภท / ทุกประเภท → **ไฟล์รวม** (xlsx = 1 ชีตต่อรายการ ชื่อชีต ≤31 ตัวอักษรไม่ซ้ำ; pdf = **1 หน้า A4 แนวนอนต่อรายการ**) · ภาคเรียน/ปีการศึกษากรอกในกล่องส่งออก (ไม่เก็บในระบบ)
 20. **ค้นหา/กรอง + แบ่งหน้า ทุกรายการ**: แผนการเรียน กลุ่มเรียน รายวิชา ครู ห้องเรียน ตัวเลือกวิชา แผงวิชา ลิงก์แชร์ รายงานนำเข้า กล่องส่งออก หน้าสาธารณะ และ select ที่ตัวเลือกอาจเกิน ~25 รายการ · ค้นไทยได้ ไม่สนตัวพิมพ์ (ทุกคำต้องตรง) · กรองตามระดับ/ประเภท · แบ่งหน้า **25/50/100** · จำค่าค้นหา/ตัวกรอง/ขนาดหน้าไว้ในที่เก็บของเบราว์เซอร์ (คีย์ `tt.ui.list.<ชื่อ>`; ผู้ชมใช้ที่เก็บระดับแท็บ; logout ล้าง; ค่าที่อ่านกลับถือเป็นข้อมูลไม่เชื่อถือและถูกตรวจ) · ออกแบบให้ค้นหา 500–5,000 รายการเร็วกว่า 50 ms (วัดไว้ตอนพัฒนา — ปัจจุบันไม่มีชุดวัดเหลือในโปรเจกต์)
 21. **พิมพ์ A4 แนวนอน อ่านออกเมื่อพิมพ์ขาวดำ**: ข้อความในช่องไม่ล้นกรอบ (ลดฟอนต์ตามความยาว ตัดบรรทัด/`…` + legend ชื่อเต็ม); แยกชนิดช่องโดยไม่พึ่งสีอย่างเดียว: **สามัญ = พื้นอ่อน + ○ "ส"; วิชาชีพเฉพาะ = พื้นเข้ม + ลายทแยง + ตัวหนา + ● "ช"; เรียนรวม = ขอบคู่ + "ร"; พักเที่ยง = ลายถี่ + ข้อความ "พัก/เที่ยง"; ว่าง = ขาว** (ตรงกันทั้งจอ พิมพ์จากเบราว์เซอร์ `@media print` และ PDF)
@@ -114,7 +114,7 @@ dist/                  ผล build (ไฟล์สร้างขึ้น ไ
 |---|---|
 | `constants.js` | `STATE_VERSION=4`, `DAYS`, `PERIODS` (1–11), `LUNCH` (หลังคาบ 4), `LEVELS`, `SUBJECT_TYPES` |
 | `scheduler.js` | กฎชน: `checkPlacement`, `validateAll`, `hoursViolations`, `availableClassrooms`, `availableTeachers`, `effectiveTeacherId`, `canMerge` |
-| `store.js` | `emptyState`, `uid`, `migrateState` (v1→v2→v3→v4 idempotent), `parseState`/`importJSON`/`exportJSON`, `legacyViolations`, `trimOverHours`, `applyPlan`, ฟังก์ชันลบแบบ cascade (`removeTeacher/Room/Group/Subject/Plan`), `setSubjectTeachers`, `findOrphans` — **ไม่มีการเก็บข้อมูลในเบราว์เซอร์และไม่มีข้อมูลตัวอย่าง** |
+| `store.js` | `emptyState`, `uid`, `migrateState` (v1→v2→v3→v4→v5 idempotent), `parseState`/`importJSON`/`exportJSON`, `legacyViolations`, `trimOverHours`, `applyPlan`, ฟังก์ชันลบแบบ cascade (`removeTeacher/Room/Group/Subject/Plan`), `setSubjectTeachers`, `findOrphans` — **ไม่มีการเก็บข้อมูลในเบราว์เซอร์และไม่มีข้อมูลตัวอย่าง** |
 | `ops.js` | **`applyOp(state, op)` pure** — 18 op: `subject/teacher/group/room/plan.upsert|delete`, `group.applyPlan`, `entry.place|move|update|remove|placeMany|removeMany`, `state.import` · ตรวจ `validateAll` ก่อนคืน ok · `MAX_BATCH=200` · ไคลเอนต์ใช้ทำนายผล เซิร์ฟเวอร์ใช้ตัดสินจริง (ตัวเดียวกัน) |
 | `importer.js` | นำเข้า Excel: `importWorkbook(state, sheets, {trimOverHours})` → `{ok, report, state?}`, `IMPORT_COLUMNS`, `checkXlsxFile` |
 | `list-model.js` | ค้นหา/กรอง/เรียง/แบ่งหน้า: `normalizeText`, `matchQuery`, `filterItems`, `sortItems`, `paginate`, `queryList` |
@@ -140,7 +140,7 @@ dist/                  ผล build (ไฟล์สร้างขึ้น ไ
 | `/api/state` | GET | แอดมิน (cookie) หรือผู้ดู (`X-Share-Token`) | อ่าน state (แอดมินเต็ม / ผู้ดูกรองตาม scope) |
 | `/api/op` | POST | แอดมิน | ทำ op เดียว (รวม `placeMany`/`removeMany`, `dryRun`) ด้วย CAS + ตรวจซ้ำที่เซิร์ฟเวอร์ |
 | `/api/import` | POST | แอดมิน | นำเข้า (state/patch/rows) = op `state.import` |
-| `/api/migrate` | POST | แอดมิน | ย้ายข้อมูลเดิม v1–v4 ขึ้นฐานว่าง (หรือ `force` หลังถ่าย snapshot) |
+| `/api/migrate` | POST | แอดมิน | ย้ายข้อมูลเดิม v1–v5 ขึ้นฐานว่าง (หรือ `force` หลังถ่าย snapshot) |
 | `/api/shares` | GET/POST/PUT/DELETE | แอดมิน | จัดการลิงก์แชร์ |
 | `/api/snapshots` | GET | แอดมิน | รายการ/ดาวน์โหลด snapshot + audit |
 | `/api/public` | GET | ทุกคน | ข้อมูลสาธารณะที่กรองแล้ว (ETag/304, rate limit 300/นาที/IP) |
@@ -165,7 +165,7 @@ state (version 4) = {
 ```
 - id: `[A-Za-z0-9_-]{1,64}` และห้ามเป็นชื่อสงวนของ `Object.prototype` (`__proto__`, `constructor` ฯลฯ) — ในโค้ดห้ามใช้ object ธรรมดาเป็นดัชนีด้วย id/ชื่อ (ใช้ `Map`/`Object.create(null)` + `Object.hasOwn`)
 - ข้อความ: ไม่มีอักขระควบคุม/กำกับทิศทาง/zero-width; ชื่อ/รหัส ≤200 ตัวอักษร ฟิลด์อื่น ≤500
-- **ประวัติเวอร์ชัน:** v1 (เดิม `rooms`=กลุ่มเรียน) → v2 (`groups` + `rooms`=ห้องเรียน + `levels`) → v3 (`teacherIds`, `entry.teacherId`) → v4 (`plans`, `group.subjectIds/planId`) · `migrateState` ต่อโซ่และ idempotent ใช้กับการนำเข้าไฟล์ JSON และ `/api/migrate` (ไฟล์ที่ไม่มี `version` ถือเป็น v1) — **รุ่นเก่าเคยเก็บข้อมูลไว้ในเบราว์เซอร์ ปัจจุบันระบบไม่อ่านที่เก็บนั้นแล้ว ผู้ใช้ต้องส่งออกเป็นไฟล์ JSON จากรุ่นเก่าแล้วนำเข้า**
+- **ประวัติเวอร์ชัน:** v1 (เดิม `rooms`=กลุ่มเรียน) → v2 (`groups` + `rooms`=ห้องเรียน + `levels`) → v3 (`teacherIds`, `entry.teacherId`) → v4 (`plans`, `group.subjectIds/planId`) → v5 (`state.levels` ระดับที่แอดมินกำหนดได้ + ops `level.add/rename/remove/move`) · `migrateState` ต่อโซ่และ idempotent ใช้กับการนำเข้าไฟล์ JSON และ `/api/migrate` (ไฟล์ที่ไม่มี `version` ถือเป็น v1) — **รุ่นเก่าเคยเก็บข้อมูลไว้ในเบราว์เซอร์ ปัจจุบันระบบไม่อ่านที่เก็บนั้นแล้ว ผู้ใช้ต้องส่งออกเป็นไฟล์ JSON จากรุ่นเก่าแล้วนำเข้า**
 - **ค่าตั้งนอก state** (Redis `tt:settings`): `{ publicMode:{ enabled:true, hideTeacherNames:null|true|false }, confirmedAt, updatedAt, updatedBy }` + ตัวนับ `revision` (ไม่ขยับ version ของตาราง)
 
 ---
@@ -213,7 +213,7 @@ state (version 4) = {
 **ไม่มีชุดทดสอบอัตโนมัติ** ในโปรเจกต์นี้แล้ว — การตรวจก่อนใช้งานจริงต้องทำมือตามรายการตรวจใน `docs/DEPLOY.md` (ข้อ "ตรวจหลัง deploy") และตามข้อ 6.2 ด้านล่าง
 
 ### 5.1 ตัวแปรแวดล้อม (ชื่อเท่านั้น — ไม่ใส่ค่า; ดูแม่แบบที่ `.env.example`)
-- **ฝั่งเซิร์ฟเวอร์ (ตั้งบน Vercel; ห้ามขึ้นต้น `VITE_`):** `UPSTASH_REDIS_REST_URL`, `UPSTASH_REDIS_REST_TOKEN`, `SESSION_SECRET` (สุ่ม ≥32 ไบต์), `ADMIN_ACCOUNTS`, `ALLOWED_ORIGINS` · ไม่บังคับ: `UPSTASH_REDIS_REST_READONLY_TOKEN`, `PUBLIC_RATE_LIMIT`
+- **ฝั่งเซิร์ฟเวอร์ (ตั้งบน Vercel; ห้ามขึ้นต้น `VITE_`):** `UPSTASH_REDIS_REST_URL`, `UPSTASH_REDIS_REST_TOKEN` (หรือชุดที่ Vercel Upstash integration สร้างให้: `KV_REST_API_URL`, `KV_REST_API_TOKEN` — ใช้เมื่อไม่ตั้งชุด `UPSTASH_*` เลย ไม่ผสมข้ามชุด; รายละเอียดใน `docs/DEPLOY.md` ข้อ 2.1), `SESSION_SECRET` (สุ่ม ≥32 ไบต์), `ADMIN_ACCOUNTS`, `ALLOWED_ORIGINS` · ไม่บังคับ: `UPSTASH_REDIS_REST_READONLY_TOKEN` (หรือ `KV_REST_API_READ_ONLY_TOKEN`), `PUBLIC_RATE_LIMIT`
 - **ฝั่งหน้าเว็บ (Vite):** ไม่ต้องตั้งตัวแปรใดเลย · ห้ามตั้งตัวแปรขึ้นต้น `VITE_` ที่เป็นความลับ (build ล้ม)
 - **แยก env Production กับ Preview/Development** (คนละฐานข้อมูล คนละ `SESSION_SECRET` คนละบัญชีแอดมิน) และเปิด Deployment Protection ให้ Preview
 - ข้อควรระวัง `$` ในแฮช: บน Vercel วางค่าตรง ๆ ในช่อง Value; ถ้าใช้ไฟล์ `.env` ที่ Vite/`vercel dev` อ่าน ต้อง escape เป็น `\$` (การครอบ single/double quote **ไม่ช่วย**)

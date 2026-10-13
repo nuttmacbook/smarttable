@@ -128,12 +128,12 @@ export function mountMulti(opts) {
       const teacherSel = tids.length >= 2 ? searchSelect({
         id: 'multi-teacher', label: 'multi-teacher', placeholder: 'ค้นหาครู', blank: '— เลือกครูผู้สอน —', value: m.teacherId,
         items: tids.map((id) => ({ id, label: byId(state.teachers, id)?.name ?? id })),
-        onChange: (v) => { m.teacherId = v; },
+        onChange: (v) => { m.teacherId = v; paintGrid(); },
       }) : null;
       const roomSel = searchSelect({
         id: 'multi-room', label: 'multi-room', placeholder: 'ค้นหาห้องเรียน', blank: '— ไม่ระบุห้องเรียน —', value: m.roomId,
         items: state.rooms.map((r) => ({ id: r.id, label: r.name + (r.building ? ` (${r.building})` : '') })),
-        onChange: (v) => { m.roomId = v; },
+        onChange: (v) => { m.roomId = v; paintGrid(); },
       });
       barSelects.push(subjectSel, ...(teacherSel ? [teacherSel] : []), roomSel);
       setup = `<span class="multi-mode-label">ลงวิชา:</span>
@@ -154,6 +154,7 @@ export function mountMulti(opts) {
       ${sw}${kindChips}${setup}
       <span class="multi-count" role="status">เลือก ${n} ช่อง${m.skipped ? ` (ข้ามช่องที่เลือกไม่ได้ ${m.skipped})` : ''}${n > MAX_SELECTION ? ` — เกิน ${MAX_SELECTION} ช่อง` : ''}</span>
       ${range}
+      ${m.kind === 'place' ? '<span class="field-hint multi-red-note">ช่องสีแดงตรวจทีละช่อง — ชั่วโมงรวมของช่องที่เลือกพร้อมกันจะตรวจอีกครั้งตอนกด "ลงตาราง" (ตรวจล่วงหน้า)</span>' : ''}
       <div class="multi-actions">${act}
         <button type="button" class="btn" data-multi-action="clear"${n ? '' : ' disabled'}>ล้างการเลือก</button>
         <button type="button" class="btn" data-multi-action="off">ยกเลิกโหมด</button></div>

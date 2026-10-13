@@ -3,12 +3,125 @@
 // v4: plans (แผนการเรียน), group.subjectIds/planId, กฎ hours บล็อก (ข้อมูลเดิมที่เกินเก็บเป็น legacyViolations)
 // v3: subject.teacherIds (0..n), entry.teacherId (เลือกจาก teacherIds)
 // v2: groups = กลุ่มเรียน (เดิม rooms/roomId), rooms = ห้องเรียน (สถานที่ใหม่), entries[].roomId = ห้องเรียน|null
-import { STATE_VERSION, SUBJECT_TYPES, LEVELS } from './constants.js';
+import { STATE_VERSION, SUBJECT_TYPES, DEFAULT_LEVELS, MAX_LEVELS, LEVEL_NAME_MAX } from './constants.js';
 import { validateAll, hoursViolations } from './scheduler.js';
-import { RESERVED_IDS, textIssues } from './validate.js';
+import { RESERVED_IDS, textIssues, sanitizeText } from './validate.js';
 
 export function emptyState() {
-  return { version: STATE_VERSION, subjects: [], teachers: [], groups: [], rooms: [], plans: [], entries: [] };
+  return { version: STATE_VERSION, subjects: [], teachers: [], groups: [], rooms: [], plans: [], entries: [], levels: [...DEFAULT_LEVELS] };
+}
+
+// ---------- ระดับ (state.levels — แอดมินกำหนดได้, v5) ----------
+// กติกา (สัญญากลาง T61): ชื่อระดับเป็นข้อความที่ "อยู่ในรูปปกติแล้ว" = NFC, ไม่มีอักขระควบคุม/กำกับทิศทาง/zero-width,
+// ไม่มีช่องว่างหัวท้าย/แท็บ/ขึ้นบรรทัด, ไม่ว่าง, ยาว 1–20 ตัวอักษร (นับเป็น code point ไม่ใช่ UTF-16: สระ/วรรณยุกต์ไทยนับเป็นตัวหนึ่ง),
+// ห้ามมีเครื่องหมายจุลภาค , และ ， (เป็นตัวคั่นในไฟล์ Excel) · ชื่อซ้ำเทียบหลังตัดช่องว่างซ้อน + ตัวพิมพ์เล็ก (levelKey)
+// ชื่อสงวนของ Object.prototype (__proto__, constructor ฯลฯ) ใช้เป็นชื่อระดับได้ — โค้ดใช้ Set/Map เสมอ ไม่ใช้ object เป็นดัชนี · ไม่เกิน MAX_LEVELS (30) ระดับ
+export function normalizeLevelName(value) {
+  return typeof value === 'string' ? sanitizeText(value, { max: Infinity }) : '';
+}
+export const levelKey = (value) => normalizeLevelName(value).toLowerCase().replace(/\s+/g, ' ');
+// คืนข้อความปัญหา (ไทย) หรือ null ถ้าชื่อใช้ได้ (ต้องอยู่ในรูปปกติแล้ว — ใช้ normalizeLevelName ก่อนถ้ารับจากผู้ใช้)
+export function levelNameIssue(value) {
+  if (typeof value !== 'string') return 'ชื่อระดับต้องเป็นข้อความ';
+  const n = normalizeLevelName(value);
+  if (n === '') return 'ชื่อระดับต้องไม่ว่าง';
+  if (n !== value) return 'ชื่อระดับมีช่องว่างหัวท้าย/อักขระควบคุม/กำกับทิศทาง/zero-width หรือไม่ใช่ NFC';
+  if (/[,，]/.test(value)) return 'ชื่อระดับห้ามมีเครื่องหมายจุลภาค (,)';
+  if (Array.from(value).length > LEVEL_NAME_MAX) return `ชื่อระดับยาวเกิน ${LEVEL_NAME_MAX} ตัวอักษร`;
+  return null;
+}
+export const isValidLevelName = (value) => levelNameIssue(value) === null;
+
+// ระดับที่ถูกอ้างอยู่ในวิชา/กลุ่ม/แผน เรียงตามลำดับที่พบ (วิชา → กลุ่ม → แผน) ไม่ซ้ำ ข้ามค่าที่ไม่ใช่ข้อความ
+export function levelsInUse(state) {
+  const out = new Set();
+  const add = (v) => { if (typeof v === 'string') out.add(v); };
+  for (const s of Array.isArray(state?.subjects) ? state.subjects : []) {
+    for (const l of Array.isArray(s?.levels) ? s.levels : []) add(l);
+  }
+  for (const g of Array.isArray(state?.groups) ? state.groups : []) add(g?.level);
+  for (const p of Array.isArray(state?.plans) ? state.plans : []) add(p?.level);
+  return [...out];
+}
+
+// สร้างรายการระดับจากข้อมูลเก่า: ค่าเริ่มต้น + ระดับที่วิชา/กลุ่ม/แผนอ้างอยู่ ตามลำดับที่พบ (วิชา→กลุ่ม→แผน)
+// ชื่อที่ผิดรูปแบบแค่ "ช่องว่าง/อักขระซ่อน/NFC" ถูกทำให้เป็นรูปปกติ และชื่อที่ต่างกันแค่ตัวพิมพ์/ช่องว่างซ้อนรวมเป็นชื่อแรกที่พบ
+// (ข้อมูลเดิมไม่หาย — การอ้างอิงถูกเขียนใหม่ให้ตรงกับชื่อมาตรฐาน) · ชื่อที่ใช้เป็นระดับไม่ได้จริงถูกซ่อมให้ผ่านเสมอ (T74):
+// จุลภาค→ช่องว่าง, ยาวเกิน 20→ตัดเหลือ 20, ว่าง/ไม่ใช่ข้อความ→"ไม่ระบุระดับ", ชนชื่ออื่นที่ไม่ใช่ตัวเดิม→ต่อท้าย " 2" " 3" (ไม่ยุบเงียบ ๆ)
+// ยกเว้นเมื่อระดับเต็ม MAX_LEVELS แล้ว (คงไว้ให้ parseState รายงาน)
+const UNSPECIFIED_LEVEL = 'ไม่ระบุระดับ';
+function canonicalizeLevels(state) {
+  const list = [...DEFAULT_LEVELS];
+  const byKey = new Map(list.map((n) => [levelKey(n), n]));
+  const repaired = new Map(); // ค่าดิบที่ผิดรูป → ชื่อที่ซ่อมแล้ว (ค่าดิบเดียวกันได้ชื่อเดียวกันเสมอ)
+  const take = (n) => {
+    byKey.set(levelKey(n), n);
+    list.push(n);
+    return n;
+  };
+  // ซ่อมชื่อที่ใช้ไม่ได้: จุลภาค→ช่องว่าง, ตัดเหลือ 20 ตัวอักษร, ว่าง/ไม่ใช่ข้อความ→UNSPECIFIED_LEVEL
+  // ถ้าชื่อที่ซ่อมได้ชนกับระดับอื่นที่ไม่ใช่ตัวเดิม ต่อท้าย " 2", " 3" … (ไม่ยุบ 2 ระดับที่ต่างกันเงียบ ๆ)
+  const repair = (raw) => {
+    let base = typeof raw === 'string' ? normalizeLevelName(raw.replace(/[,，]/g, ' ')).replace(/\s+/g, ' ') : '';
+    base = Array.from(base).slice(0, LEVEL_NAME_MAX).join('').trim();
+    const memo = base === '' ? 'n:' : `s:${raw}`; // ค่าว่าง/ไม่ใช่ข้อความทั้งหมดใช้ชื่อ "ไม่ระบุระดับ" ร่วมกัน
+    if (repaired.has(memo)) return repaired.get(memo);
+    if (base === '') base = UNSPECIFIED_LEVEL;
+    let name = base;
+    for (let i = 2; byKey.has(levelKey(name)) && i < 1000; i += 1) {
+      const suffix = ` ${i}`;
+      name = Array.from(base).slice(0, LEVEL_NAME_MAX - suffix.length).join('').trimEnd() + suffix;
+    }
+    if (list.length >= MAX_LEVELS) return raw; // เต็มโควตา: คงไว้ให้ parseState รายงาน
+    take(name);
+    repaired.set(memo, name);
+    return name;
+  };
+  // สองรอบ: รอบแรกลงทะเบียนเฉพาะชื่อที่ใช้ได้จริง (ชื่อที่ซ่อมแล้วจึงไม่แย่งชื่อของระดับที่ถูกต้อง), รอบสองจึงซ่อมชื่อที่ผิดรูป
+  let allowRepair = false;
+  const canon = (raw) => {
+    if (typeof raw !== 'string') return allowRepair ? repair(raw) : raw;
+    const n = normalizeLevelName(raw);
+    if (!isValidLevelName(n)) return allowRepair ? repair(raw) : raw;
+    const k = levelKey(n);
+    if (byKey.has(k)) return byKey.get(k);
+    if (list.length >= MAX_LEVELS) return raw;
+    return take(n);
+  };
+  const sameArr = (a, b) => a.length === b.length && a.every((x, i) => x === b[i]);
+  const run = () => {
+    const subjects = (Array.isArray(state?.subjects) ? state.subjects : []).map((s) => {
+      if (!isObj(s) || !Array.isArray(s.levels)) return s;
+      const mapped = [...new Set(s.levels.map(canon))];
+      return sameArr(mapped, s.levels) ? s : { ...s, levels: mapped };
+    });
+    const fixLevel = (row) => {
+      if (!isObj(row)) return row;
+      const l = canon(row.level);
+      return l === row.level ? row : { ...row, level: l };
+    };
+    const groups = (Array.isArray(state?.groups) ? state.groups : []).map(fixLevel);
+    const plans = (Array.isArray(state?.plans) ? state.plans : []).map(fixLevel);
+    return { subjects, groups, plans };
+  };
+  run();
+  allowRepair = true;
+  const out = run();
+  return { levels: list.slice(0, MAX_LEVELS), ...out };
+}
+
+// ค่าเริ่มต้น + ระดับอื่นที่มีใช้อยู่ (ตามลำดับที่พบ) · ใช้เมื่อฐานข้อมูลเก่ายังไม่มี levels (ไม่ throw กับข้อมูลเพี้ยน)
+// หมายเหตุ: คืนเฉพาะรายการระดับ — ถ้าข้อมูลมีชื่อผิดรูปแบบ (ช่องว่างท้าย/ตัวพิมพ์ต่าง) ให้ใช้ migrateState ซึ่งเขียนการอ้างอิงให้ตรงกันด้วย
+export function deriveLevels(state) {
+  return canonicalizeLevels(state).levels;
+}
+
+// จำนวนที่ใช้ระดับนี้อยู่: { subjects, groups, plans, total }
+export function levelUsage(state, name) {
+  const subjects = (Array.isArray(state?.subjects) ? state.subjects : []).filter((s) => Array.isArray(s?.levels) && s.levels.includes(name)).length;
+  const groups = (Array.isArray(state?.groups) ? state.groups : []).filter((g) => g?.level === name).length;
+  const plans = (Array.isArray(state?.plans) ? state.plans : []).filter((p) => p?.level === name).length;
+  return { subjects, groups, plans, total: subjects + groups + plans };
 }
 
 let counter = 0;
@@ -24,7 +137,7 @@ const MAX_YEAR = new Map([['ปวช.', 3], ['ปวส.', 2]]); // Map กั�
 const keep = (row, fn) => (isObj(row) ? fn(row) : row);
 
 function migrateLevel(level, year) {
-  if (LEVELS.includes(level)) return level;
+  if (DEFAULT_LEVELS.includes(level)) return level;
   if (!MAX_YEAR.has(level)) return level; // ค่าแปลก คงไว้ให้ตัวตรวจ import รายงาน
   const y = Number.isInteger(year) && year >= 1 && year <= MAX_YEAR.get(level) ? year : 1;
   return `${level}${y}`;
@@ -45,7 +158,7 @@ function v1ToV2(raw) {
         entries.filter((e) => isObj(e) && e.subjectId === x.id).map((e) => levelOfGroup.get(e.groupId)),
       );
       used.delete(undefined);
-      const levels = used.size ? LEVELS.filter((l) => used.has(l)) : [...LEVELS];
+      const levels = used.size ? DEFAULT_LEVELS.filter((l) => used.has(l)) : [...DEFAULT_LEVELS];
       return { ...x, teacherId: x.teacherId || null, levels };
     }),
   );
@@ -86,29 +199,37 @@ function v3ToV4(v3) {
       planId: x.planId ?? null,
     })),
   );
-  return { ...v3, version: STATE_VERSION, groups, plans: arr(v3.plans) };
+  return { ...v3, version: 4, groups, plans: arr(v3.plans) };
 }
 
-// รับ object ดิบ (v1 ไม่มี version/1, v2, v3 หรือ v4) คืน state v4 ไม่แก้ของเดิม (idempotent)
+// v4 -> v5: levels = ค่าเริ่มต้น + ระดับอื่นที่มีใช้อยู่ในวิชา/กลุ่ม/แผน (ถ้าข้อมูลมี levels อยู่แล้วคงไว้ตามเดิม ไม่แก้เงียบ ๆ)
+function v4ToV5(v4) {
+  if (v4.levels !== undefined) return { ...v4, version: STATE_VERSION };
+  const c = canonicalizeLevels(v4);
+  return { ...v4, version: STATE_VERSION, levels: c.levels, subjects: c.subjects, groups: c.groups, plans: c.plans };
+}
+
+// รับ object ดิบ (v1 ไม่มี version/1, v2, v3, v4 หรือ v5) คืน state v5 ไม่แก้ของเดิม (idempotent)
 export function migrateState(raw) {
   if (!isObj(raw)) return raw;
   const v = raw.version;
-  if (v === STATE_VERSION) {
-    return {
-      ...raw,
-      subjects: arr(raw.subjects),
-      teachers: arr(raw.teachers),
-      groups: arr(raw.groups).map((g) => keep(g, (x) => ({ ...x, planId: x.planId ?? null }))),
-      rooms: arr(raw.rooms),
-      plans: arr(raw.plans),
-      entries: arr(raw.entries).map((e) =>
-        keep(e, (x) => ({ ...x, roomId: x.roomId ?? null, teacherId: x.teacherId ?? null })),
-      ),
-    };
-  }
-  if (v === 3) return v3ToV4({ ...raw, groups: arr(raw.groups), rooms: arr(raw.rooms) });
-  if (v === 2) return v3ToV4(v2ToV3({ ...raw, groups: arr(raw.groups), rooms: arr(raw.rooms) }));
-  if (v === undefined || v === 1) return v3ToV4(v2ToV3(v1ToV2(raw)));
+  // v4/v5: ทำให้คอลเลกชันเป็น array และเติมค่าเริ่มต้นของ planId/roomId/teacherId (ไม่แตะ levels ของ v5 — parseState ตัดสิน)
+  const normalized = () => ({
+    ...raw,
+    subjects: arr(raw.subjects),
+    teachers: arr(raw.teachers),
+    groups: arr(raw.groups).map((g) => keep(g, (x) => ({ ...x, planId: x.planId ?? null }))),
+    rooms: arr(raw.rooms),
+    plans: arr(raw.plans),
+    entries: arr(raw.entries).map((e) =>
+      keep(e, (x) => ({ ...x, roomId: x.roomId ?? null, teacherId: x.teacherId ?? null })),
+    ),
+  });
+  if (v === STATE_VERSION) return normalized();
+  if (v === 4) return v4ToV5(normalized());
+  if (v === 3) return v4ToV5(v3ToV4({ ...raw, groups: arr(raw.groups), rooms: arr(raw.rooms) }));
+  if (v === 2) return v4ToV5(v3ToV4(v2ToV3({ ...raw, groups: arr(raw.groups), rooms: arr(raw.rooms) })));
+  if (v === undefined || v === 1) return v4ToV5(v3ToV4(v2ToV3(v1ToV2(raw))));
   return raw; // เวอร์ชันไม่รู้จัก ให้ตัวตรวจปฏิเสธ
 }
 
@@ -137,11 +258,11 @@ export function parseState(text) {
   if (!isObj(data)) return { ok: false, errors: ['รูปแบบข้อมูลไม่ถูกต้อง'] };
 
   const isV1 = data.version === undefined || data.version === 1;
-  if (!isV1 && ![2, 3, STATE_VERSION].includes(data.version)) {
-    return { ok: false, errors: [`เวอร์ชันข้อมูลไม่รองรับ (ต้องเป็น ${STATE_VERSION}, 3, 2 หรือ 1)`] };
+  if (!isV1 && ![2, 3, 4, STATE_VERSION].includes(data.version)) {
+    return { ok: false, errors: [`เวอร์ชันข้อมูลไม่รองรับ (ต้องเป็น ${STATE_VERSION}, 4, 3, 2 หรือ 1)`] };
   }
   const errors = [];
-  let need = KEYS;
+  let need = data.version === STATE_VERSION ? [...KEYS, 'levels'] : KEYS;
   if (data.version === 3 || data.version === 2) need = KEYS.filter((k) => k !== 'plans');
   if (isV1) need = ['subjects', 'teachers', 'rooms', 'entries'];
   for (const k of need) {
@@ -203,10 +324,27 @@ export function parseState(text) {
   };
   uniqueNames('rooms', 'ห้องเรียน');
   uniqueNames('plans', 'แผนการเรียน');
-  for (const g of d.groups) {
-    if (!LEVELS.includes(g.level)) {
-      errors.push(`กลุ่มเรียน ${g.name}: ระดับ "${g.level}" ไม่ถูกต้อง (ต้องเป็น ${LEVELS.join(', ')})`);
+  // ระดับ (state.levels): รูปแบบชื่อ ไม่ซ้ำ (เทียบ levelKey) ไม่เกิน MAX_LEVELS · วิชา/กลุ่ม/แผนต้องอ้างระดับที่มีในรายการ
+  const levelList = Array.isArray(d.levels) ? d.levels : [];
+  if (levelList.length > MAX_LEVELS) errors.push(`ระดับมีได้ไม่เกิน ${MAX_LEVELS} ระดับ (พบ ${levelList.length})`);
+  const levelKeys = new Set();
+  levelList.forEach((name, i) => {
+    const issue = levelNameIssue(name);
+    if (issue) {
+      errors.push(`ระดับ [${i}]: ${issue}`);
+      return;
     }
+    const k = levelKey(name);
+    if (levelKeys.has(k)) errors.push(`ระดับ "${name}" ซ้ำ`);
+    levelKeys.add(k);
+  });
+  const levelSet = new Set(levelList.filter((n) => typeof n === 'string'));
+  const levelText = levelList.filter((n) => typeof n === 'string').join(', ') || '(ยังไม่มีระดับ)';
+  const notInLevels = (label, value) => (value === undefined || value === null || value === ''
+    ? `${label}: ไม่ได้ระบุระดับ (ต้องเลือกจาก ${levelText})`
+    : `${label}: ระดับ "${String(value)}" ไม่อยู่ในรายการระดับของระบบ (ต้องเป็น ${levelText})`);
+  for (const g of d.groups) {
+    if (!levelSet.has(g.level)) errors.push(notInLevels(`กลุ่มเรียน ${g.name}`, g.level));
   }
 
   const codes = new Set();
@@ -240,8 +378,9 @@ export function parseState(text) {
     }
     if (!Array.isArray(sub.levels) || sub.levels.length === 0) {
       errors.push(`${label}: ต้องระบุระดับที่เปิดสอนอย่างน้อย 1 ระดับ`);
-    } else if (sub.levels.some((l) => !LEVELS.includes(l))) {
-      errors.push(`${label}: ระดับที่เปิดสอนต้องเป็นค่าใน ${LEVELS.join(', ')}`);
+    } else if (sub.levels.some((l) => !levelSet.has(l))) {
+      const bad = sub.levels.filter((l) => !levelSet.has(l)).map(String).join(', ');
+      errors.push(`${label}: ระดับที่เปิดสอน "${bad}" ไม่อยู่ในรายการระดับของระบบ (ต้องเป็น ${levelText})`);
     }
   });
 
@@ -260,8 +399,8 @@ export function parseState(text) {
   };
   const planIds = new Set(d.plans.map((p) => p.id));
   d.plans.forEach((p) => {
-    if (!LEVELS.includes(p.level)) {
-      errors.push(`แผนการเรียน ${p.name}: ระดับ "${p.level}" ไม่ถูกต้อง (ต้องเป็น ${LEVELS.join(', ')})`);
+    if (!levelSet.has(p.level)) {
+      errors.push(notInLevels(`แผนการเรียน ${p.name}`, p.level));
     }
     subjectList(p.subjectIds, `แผนการเรียน ${p.name}`);
   });
@@ -288,6 +427,7 @@ export function parseState(text) {
 
   const state = { version: STATE_VERSION };
   for (const k of KEYS) state[k] = d[k];
+  state.levels = [...levelList];
   state.entries = state.entries.map((e) => ({ ...e, roomId: e.roomId ?? null, teacherId: e.teacherId ?? null }));
   return { ok: true, state, errors: [], migrated: data.version !== STATE_VERSION };
 }

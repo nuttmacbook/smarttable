@@ -1,6 +1,5 @@
 // หน้าแผนการเรียน (ชุดวิชา/โครงหลักสูตร): CRUD แผน + เลือกวิชาแบบ checkbox กรองตามระดับ
 // การผูกแผนเข้ากลุ่มเรียนทำที่หน้า "กลุ่มเรียน" (ปุ่ม "เลือกแผนการเรียน")
-import { LEVELS } from '../constants.js';
 import { uid } from '../store.js';
 import { mountTableList, mountChecklist } from './list-kit.js';
 import {
@@ -8,7 +7,7 @@ import {
   errorListHtml, opFailureTitle, editOnly,
 } from './util.js';
 
-const planFilters = [{ id: 'level', label: 'ระดับ', options: LEVELS.map((l) => [l, l]), test: (p, v) => p.level === v }];
+const planFilters = () => [{ id: 'level', label: 'ระดับ', options: ctx.state.levels.map((l) => [l, l]), test: (p, v) => p.level === v }];
 
 export function renderPlans(root) {
   const { state } = ctx;
@@ -24,7 +23,7 @@ export function renderPlans(root) {
   const subjectNames = (p) => p.subjectIds.map((id) => byId(ctx.state.subjects, id)?.name ?? '').join(' ');
   mountTableList(root.querySelector('#list-root'), {
     name: 'plans',
-    def: { fields: (p) => [p.name, p.level, p.note, subjectNames(p)], filters: planFilters, sort: { key: (p) => p.name }, placeholder: 'ค้นหาชื่อแผน/วิชาในแผน' },
+    def: { fields: (p) => [p.name, p.level, p.note, subjectNames(p)], filters: planFilters(), sort: { key: (p) => p.name }, placeholder: 'ค้นหาชื่อแผน/วิชาในแผน' },
     getItems: () => ctx.state.plans,
     headHtml: `<tr><th>ชื่อแผน</th><th>ระดับ</th><th class="col-num">จำนวนวิชา</th><th>วิชา</th><th>หมายเหตุ</th><th class="col-num">กลุ่มที่ใช้</th>${editOnly('<th></th>')}</tr>`,
     rowHtml: (p) => {
@@ -55,6 +54,7 @@ export function renderPlans(root) {
 }
 
 export function planForm(plan) {
+  if (!ctx.state.levels?.length) return toast('ยังไม่มีระดับ ไปเพิ่มที่เมนู "ระดับ" ก่อน', 'error');
   const isEdit = Boolean(plan);
   const chosen = new Set(plan?.subjectIds || []);
   const m = openModal({
@@ -63,7 +63,7 @@ export function planForm(plan) {
     bodyHtml: `<form id="plan-form" novalidate><div id="form-errors"></div>
       <div class="form-grid">
         ${field('ชื่อแผน', `<input class="input" id="f-name" value="${esc(plan?.name)}" placeholder="เช่น ปวช.1 เทคโนโลยีสารสนเทศ">`, { required: true, id: 'f-name', hint: 'ห้ามซ้ำกับแผนอื่น' })}
-        ${field('ระดับ', `<select class="select" id="f-level">${optionsHtml(LEVELS.map((l) => [l, l]), plan?.level || LEVELS[0])}</select>`, { id: 'f-level' })}
+        ${field('ระดับ', `<select class="select" id="f-level">${optionsHtml(ctx.state.levels.map((l) => [l, l]), plan?.level || ctx.state.levels[0])}</select>`, { id: 'f-level' })}
         <div class="span-2">${field('หมายเหตุ', `<input class="input" id="f-note" value="${esc(plan?.note)}">`, { id: 'f-note' })}</div>
         <div class="span-2">${field('วิชาในแผน', '<div id="f-subjects" aria-label="วิชาในแผน"></div>',
           { hint: 'แสดงเฉพาะวิชาที่เปิดสอนในระดับที่เลือก' })}</div>

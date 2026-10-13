@@ -81,7 +81,7 @@
 | ผู้ดู | header **`X-Share-Token: <token>` เท่านั้น** | **200** `{ "role":"viewer", "version":12, "scope":"group:g1", "label":"ปวช.1/1", "state":{…เฉพาะ scope…} }` |
 | ไม่มีทั้งคู่ | — | **401** |
 - **`?share=` ถูกยกเลิก (W-04)** — ถูกมองเป็นคำขอแอดมินที่ไม่ได้ล็อกอิน (401) · ห้าม log header นี้ (โค้ดไม่ log)
-- ลำดับฝั่งผู้ดู: ตรวจรูปแบบ token (`[A-Za-z0-9_-]{16,256}` — ผิด → 404 โดยไม่แตะ Redis) → **rate limit ต่อ IP 120 ครั้ง/นาที** (เกิน → **429** + `Retry-After`) → ค้นลิงก์ → อ่านข้อมูล (ใช้ `UPSTASH_REDIS_REST_READONLY_TOKEN` ถ้าตั้งไว้)
+- ลำดับฝั่งผู้ดู: ตรวจรูปแบบ token (`[A-Za-z0-9_-]{16,256}` — ผิด → 404 โดยไม่แตะ Redis) → **rate limit ต่อ IP 120 ครั้ง/นาที** (เกิน → **429** + `Retry-After`) → ค้นลิงก์ → อ่านข้อมูล (ใช้ `UPSTASH_REDIS_REST_READONLY_TOKEN` หรือ `KV_REST_API_READ_ONLY_TOKEN` ของชุดที่เลือกถ้าตั้งไว้)
 - token ผิดรูปแบบ/ไม่พบ/เพิกถอน/หมดอายุ/ฐานว่าง → **404** `{error:'not_found', message:'ลิงก์นี้ใช้ไม่ได้'}` ข้อความเดียวกันทุกกรณี
 - `state` ผู้ดู: ครบ 6 คอลเลกชัน (ผ่าน `parseState`) · `entries` เฉพาะใน scope · `groups/subjects/teachers/rooms` เฉพาะที่อ้างถึง · `plans: []` · `group.planId = null` · `subjectIds`/`teacherIds` กรองให้เหลือที่ส่งไป · scope `all` ส่งทั้งหมด (รวม plans) · ไม่ส่งข้อมูลบัญชี/ลิงก์อื่นเด็ดขาด
 
@@ -150,7 +150,8 @@
 | `tt:stage:*` | key ชั่วคราว (`EX 600`) เฉพาะตอนเขียนก้อนใหญ่เกิน ~700 KB |
 - **Lua CAS** (`server/redis.js` `CAS_LUA`): ข้อมูลทั้งหมดเข้าทาง `KEYS`/`ARGV` (ไม่ประกอบสคริปต์จากข้อมูล) · `tt:v == baseVersion` (ไม่มี key = `'0'`) → ทำรายการเขียนทั้งหมด (SET/DEL/ย้ายจาก key ชั่วคราว/HDEL/HSET/LPUSH+LTRIM) แล้ว `INCR tt:v` (หรือไม่ขยับสำหรับลิงก์แชร์) · ไม่ตรง → `[0, version ล่าสุด]` → 409 · ค่าเดียวต่อ key ≤ 900 KB (เกิน → 413)
 - อ่าน state: อ่าน `tt:v` ก่อน/หลังชุด `MGET` ถ้าเปลี่ยนระหว่างอ่านให้ลองใหม่ (สูงสุด 4 ครั้ง แล้ว 503)
-- **Upstash read-only token (W-16, optional):** ตั้ง `UPSTASH_REDIS_REST_READONLY_TOKEN` → เส้นทาง "ค้นลิงก์ + อ่านข้อมูล" ของผู้ดูใช้ token นี้ (เขียนไม่ได้แม้โค้ดผิดพลาด) · ตัวนับ rate limit ของผู้ดูยังใช้ token หลัก (ต้องเขียน) · ไม่ตั้ง = ใช้ token หลักทั้งหมด · **ยังไม่ได้ทดสอบกับ Upstash จริง**
+- **ชื่อ env ของการเชื่อมต่อ (เลือกชุดใน `server/redis.js` `resolveRedisConfig`):** ชุดหลัก `UPSTASH_REDIS_REST_URL` + `UPSTASH_REDIS_REST_TOKEN` (+ `UPSTASH_REDIS_REST_READONLY_TOKEN`) · ถ้า "ไม่ตั้งชุดหลักเลย" ใช้ชุดที่ Vercel Upstash integration สร้างให้ `KV_REST_API_URL` + `KV_REST_API_TOKEN` (+ `KV_REST_API_READ_ONLY_TOKEN`) · ใช้ URL+token+read-only จากชุดเดียวกันเสมอ ไม่ผสมข้ามชุด · ชุดที่ตั้งไม่ครบคู่ หรือไม่มีเลย → `ConfigError` (ตอบ 500; ข้อความระบุชื่อตัวแปรของทั้งสองชุด ไม่มีค่าจริง) · `KV_URL`/`REDIS_URL` (`redis://`) ไม่ใช้ · ชื่อ `KV_REST_API_READ_ONLY_TOKEN` ยังไม่ได้ยืนยันกับ integration จริง
+- **Upstash read-only token (W-16, optional):** ตั้ง `UPSTASH_REDIS_REST_READONLY_TOKEN` (หรือ `KV_REST_API_READ_ONLY_TOKEN`) → เส้นทาง "ค้นลิงก์ + อ่านข้อมูล" ของผู้ดูใช้ token นี้ (เขียนไม่ได้แม้โค้ดผิดพลาด) · ตัวนับ rate limit ของผู้ดูยังใช้ token หลัก (ต้องเขียน) · ไม่ตั้ง = ใช้ token หลักทั้งหมด · **ยังไม่ได้ทดสอบกับ Upstash จริง**
 
 ## สิ่งที่ยังไม่ได้ยืนยันบนระบบจริง (รายงานตรง ๆ)
 - **ยังไม่เคยรันกับ Upstash หรือ Vercel จริง** — adapter `UpstashRedis`, Lua `EVAL` จริง (ใช้ RENAME/PERSIST/HSET/LPUSH/LTRIM, เงื่อนไข `G`/`B` และชนิดค่าที่คืนเช่น `[0,"7"]` vs `[1,7]`), เพดานคำขอ 1 MB, `maxDuration`, การแข่งกันข้ามอินสแตนซ์, read-only token, คุกกี้ `Secure`/`__Host-` ในเบราว์เซอร์+https

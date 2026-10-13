@@ -256,6 +256,18 @@
 ### 10.7 หน้าสาธารณะ
 `.public-page` : `.public-intro` → `.public-bar` (`.chip-group` เลือกประเภท กลุ่มเรียน/ครู/ห้องเรียน เป็น radio + list-kit เลือกรายการ + ปุ่มพิมพ์/ส่งออก) → `.public-title` (`h2` + `.badge-readonly`) → `.view-meta` → `.tt-wrap` อ่านอย่างเดียว (`is-readonly`) → `.public-footer` (ลิงก์ `a.link-muted` "เข้าสู่ระบบแอดมิน") · ปิดสาธารณะ: `.public-disabled.empty-state` + `.btn-primary` เข้าสู่ระบบ + ข้อความเรื่องลิงก์แชร์
 
+### 10.7.1 ถ้อยคำเรื่องความเป็นส่วนตัว/ความปลอดภัย (กฎ: บอกสิ่งที่ถูกซ่อนจริง + ข้อจำกัด ห้ามสัญญาเกินที่โค้ดทำ)
+- **ห้ามใช้คำ** "ปลอดภัย", "ป้องกันแล้ว", "ไม่รั่ว", "ไม่มีข้อมูลส่วนบุคคล" ในป้าย/ข้อความใด ๆ
+- **ป้ายซ่อนครู** (`.badge-hidden-teachers`): "ไม่แสดงรายชื่อครู" (ไม่ใช่ "ไม่แสดงชื่อครู") + คำอธิบายสั้นที่มองเห็นได้ ไม่ซ่อนใน tooltip อย่างเดียว: "ชื่อครูที่พิมพ์อยู่ในชื่อวิชา ห้อง หรือกลุ่มอาจยังเห็นได้" (ข้อเท็จจริง: ระบบตัดรายชื่อ/รหัส/แผนกครู และหมายเหตุของวิชา-ห้อง-กลุ่ม แต่ไม่ตัดชื่อครูที่ผู้ใช้พิมพ์ในชื่อ)
+- class: `.hidden-teachers-note` (บรรทัดอธิบายใต้ป้าย มองเห็นเสมอ) · `.show-names-warning` (กล่อง `.alert-warning` ตอนเปิดสวิตช์แสดงชื่อครู + ปุ่มยืนยัน)
+- **หน้าตั้งค่า ยังไม่ยืนยัน** (`.unconfirmed-banner`): "ตอนนี้ระบบซ่อนรายชื่อครูไว้ก่อน (ค่าเริ่มต้น) — เลือกแสดงเมื่อพร้อม"
+- **ตอนเลือกแสดงชื่อครู:** ต้องมีคำเตือน (`.alert-warning`) + ให้กดยืนยันก่อนบันทึก: "ชื่อครูและตารางสอนจะเป็นสาธารณะ ใครก็เปิดดูได้โดยไม่ต้องมีลิงก์ และไม่มีวันหมดอายุ (เป็นข้อมูลส่วนบุคคล)"
+- **หน้าลิงก์แชร์:** ป้าย scope "ทั้งหมด" ต้องบอกว่า "เห็นชื่อครูทั้งหมด ไม่ขึ้นกับการตั้งค่าซ่อนในโหมดสาธารณะ" (คนละกลไก)
+- **ป้าย "โหมดดูอย่างเดียว"** บอกแค่ว่าแก้ไม่ได้ ไม่สื่อว่าข้อมูลปลอดภัย
+- **ข้อความ error:** login คงที่ "ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง" · 429 "ลองบ่อยเกินไป โปรดรอสักครู่" (ไม่ใส่จำนวนครั้ง/เวลาเหลือ) · 500/503 ทั่วไป "ระบบขัดข้อง โปรดติดต่อผู้ดูแล" (ไม่ระบุ env/ชื่อบัญชี/Redis/Upstash)
+- **ข้อความ 422 ที่มีชื่อวิชา-ครู (ชั่วโมงเกิน/ชนครู)** ใช้เฉพาะหน้าแอดมิน ห้ามนำไปแสดงบนหน้าสาธารณะ/หน้าลิงก์แชร์
+- **ส่งออก/พิมพ์:** ชื่อไฟล์และหัวเอกสารไม่มีชื่อครูเมื่อซ่อน · คำอธิบายใช้ "ซ่อนรายชื่อครู"
+
 ### 10.8 หน้าตั้งค่า
 `.settings-list > .setting-row(.is-on)` : `.setting-text` (`.setting-title`, `.setting-desc`, `.alert.alert-warning.pdpa-note` คำเตือน PDPA/ช่องหมายเหตุ, `.setting-meta` แก้ไขล่าสุดโดย…) + `label.switch` ทางขวา · แถวที่เปิดมีแถบน้ำเงินซ้าย + สวิตช์แสดง "เปิด"
 
@@ -269,6 +281,38 @@
 - V5-01 หน้าตั้งค่า: ค่า `hideTeacherNames` ยังเป็น null → `.alert.alert-warning.unconfirmed-banner` "ยังไม่ได้ยืนยันการตั้งค่า — ระบบซ่อนชื่อครูไว้ก่อน" + `.badge.badge-unconfirmed`; ยืนยันว่าซ่อน = `.badge-hidden-teachers` (ไอคอนกุญแจเติมโดย CSS) · มุมมองสาธารณะที่ซ่อนครูควรบอกผู้ชมด้วย `.badge-hidden-teachers` "ซ่อนชื่อครู"
 
 - ที่ฟ้าเพิ่มเอง (รับรองแล้ว): `.pager-gap` (ตัว … คั่นเลขหน้า) · `.list-kit-body` (ห่อเนื้อหารายการ) · `#multi-box` `#grid-box` wrapper ไม่ต้องมีสไตล์ · `.setting-meta` ใช้คู่ `.text-muted` ได้
+
+### 10.9.2 ช่องที่ลงวิชาที่เลือกไม่ได้ (ไฮไลต์แดง) — T66
+เมื่อเลือกกลุ่ม+วิชาจากแผง ช่องว่างที่ลงไม่ได้ใส่ `tt-blocked` (คำนวณโดยฟ้าจาก scheduler.js ตัวเดียว) พร้อมสัญลักษณ์และเหตุผลสั้น
+```html
+<td class="tt-cell is-free tt-blocked tt-fit-2" tabindex="0" aria-label="ลงไม่ได้: ชนครู" title="ครูสมชายมีสอนกลุ่ม ปวช.1/2 คาบนี้">
+  <span class="tt-blocked-mark" aria-hidden="true"></span><span class="tt-blocked-why">ชนครู</span>
+</td>
+```
+- **แยกจากสถานะเดิมโดยไม่พึ่งสี:** `is-conflict` = ขอบทึบ 2px + ป้ายข้อความ (ข้อมูลที่ลงแล้วและชน) · `is-level-mismatch` = ขอบเส้นประ · **`tt-blocked` = ขอบจุด 2px + ลายตาข่ายทแยงสองทิศ + วงกลมขีดฆ่า (⊘ วาดด้วย CSS ไม่พึ่งกลิฟ) + ตัวหนา** · ชนิดวิชาใช้ลายทแยงทางเดียว (ชีพ 135°) พื้นเทา ส/ช/ร ไม่ซ้ำกัน
+- สี: พื้น `#fee2e2` ตัว `#7f1d1d` ขอบ `#dc2626`; ข้อความเหตุผลอยู่บนแถบขาวกึ่งทึบ (`.tt-blocked-why`) จึงอ่านผ่าน AA ทับลาย (ตัว `#7f1d1d` บนขาว ≈ 10:1) · เหตุผลตัดที่ 2 บรรทัด `…` · ใช้ร่วมกับ `tt-fit-1..4` ได้ (สัญลักษณ์และตัวอักษรย่อตาม em)
+- hover คงโทนแดง (ไม่เปลี่ยนเป็นฟ้าแบบช่องว่างปกติ) cursor `help` เพราะคลิกแล้วแสดงเหตุผลเต็ม · focus ใช้ขอบส้มเดิม · `is-selected` ซ้อนได้ (กรอบน้ำเงิน+✓) ในโหมดเลือกหลายช่อง
+- พิมพ์/ขาวดำ: พื้นขาว + ตาข่ายทแยงดำ + ขอบจุดดำ + ตัวดำ (ต่างจากชีพ/พักเที่ยงที่เป็นเทา+ลายทางเดียว) · legend: `.legend-swatch.tt-blocked` "ลงไม่ได้ (ไฮไลต์แดง)"
+- **ชื่อคลาสที่ฟ้าใช้จริง (รองรับคู่กับชื่อข้างบน ใช้ชุดใดชุดหนึ่งได้):** `td.tt-cell.is-free.is-blocked` > `.tt-cell-blocked` (`.tt-block-icon` ⊘ + `.tt-block-text`) + `.tt-cell-sub.tt-block-reason` · `title="ลงไม่ได้: เหตุผล"` · legend `.legend-swatch.is-blocked` · ช่องที่มีวิชาแล้วไม่ใส่ · ⊘ เป็นกลิฟตัวอักษร (ฟอนต์ระบบส่วนใหญ่มี) ใส่ `aria-hidden` และมี `.tt-block-text` "ลงไม่ได้" กำกับเสมอ จึงยังสื่อได้ถ้ากลิฟไม่แสดง
+- ข้อเสนอเหตุผลสั้น (ฟ้าแมปจาก type): ชนครู · ชนห้อง · ชนกลุ่ม · ชั่วโมงเต็ม · ระดับไม่ตรง · พักเที่ยง
+
+### 10.9.3 หน้าตั้งค่า: จัดการระดับ — T66
+```html
+<section class="level-manager">
+  <p class="level-count">ทั้งหมด 5 ระดับ (สูงสุด 30)</p>
+  <ul class="level-list">
+    <li class="level-row">
+      <span class="level-index">1</span><span class="level-name">ปวช.1</span>
+      <span class="level-usage is-used">ใช้อยู่ 3 วิชา · 2 กลุ่ม · 1 แผน</span>
+      <span class="level-actions"><button class="btn btn-sm btn-icon" aria-label="เลื่อนขึ้น">↑</button><button class="btn btn-sm btn-icon" aria-label="เลื่อนลง">↓</button><button class="btn btn-sm">แก้ชื่อ</button><button class="btn btn-sm btn-danger" disabled>ลบ</button></span>
+      <p class="level-lock-note">ยังมีวิชา/กลุ่ม/แผนใช้ระดับนี้อยู่ (6 รายการ)</p>   <!-- ใส่คู่กับ li.is-locked -->
+    </li>
+    <li class="level-row is-editing"> … <input class="input"> ปุ่ม บันทึก/ยกเลิก … <p class="level-error-note">ชื่อระดับซ้ำกับที่มีอยู่</p></li>
+  </ul>
+  <form class="level-add"><div class="field"><label class="field-label">เพิ่มระดับ</label><input class="input" maxlength="20"><span class="field-hint">1–20 ตัวอักษร ไม่ซ้ำ</span></div><button class="btn btn-primary">เพิ่ม</button></form>
+</section>
+```
+- แถวใช้อยู่: `.level-usage.is-used` (● นำหน้า) · ลบไม่ได้: `li.is-locked` ขอบซ้ายเหลือง + `.level-lock-note` ("ลบไม่ได้: …" เติมโดย CSS) + ปุ่มลบ `disabled` · โหมดแก้ชื่อ `li.is-editing` (กรอบน้ำเงิน) · ข้อผิดพลาดตรวจชื่อ `.level-error-note` (✖ นำหน้า) · ปุ่มเลื่อนขึ้นลง `.btn-icon` ≥40px; ระดับแรก/สุดท้ายใส่ `disabled` ที่ปุ่มขึ้น/ลงตามลำดับ
 
 ### 10.10 class ใหม่ทั้งหมด (T43)
 `.tt-mark` (`-general` `-vocational` `-shared`) `.type-general` `.type-vocational` `.tt-lunch-text` `.tt-fs-1..4` `.tt-fulltext` `.legend-swatch.type-general|type-vocational` · `.multi-bar` (`.is-on` `.is-remove`) `.multi-count` `.multi-actions` `.multi-mode-label` `.tt-wrap.is-multi|is-selecting|is-remove` `.tt-cell.is-selected|is-range-preview|is-anchor|is-skipped` · `.result-summary` `.result-table` `.result-ok` `.result-fail` `.result-reason` `tr.row-ok|row-fail` · `.switch` `.switch-track` `.switch-label` · `.list-kit-bar` `.search-box` `.search-clear` `.list-filters` `.list-count` `.pager` `.pager-info` `.pager-btns` `.page-size` `.list-empty` · `.public-page` `.public-intro` `.public-bar` `.public-title` `.public-footer` `.public-disabled` `.link-muted` · `.settings-list` `.setting-row` (`.is-on`) `.setting-text` `.setting-title` `.setting-desc` `.setting-meta` `.pdpa-note`

@@ -1,5 +1,5 @@
 // หน้ารายวิชา: ตาราง + ฟอร์มเพิ่ม/แก้ไข/ลบ (ตรวจรหัสวิชาไม่ซ้ำ)
-import { SUBJECT_TYPES, LEVELS, subjectTypeName } from '../constants.js';
+import { SUBJECT_TYPES, subjectTypeName } from '../constants.js';
 import { uid, removeSubject } from '../store.js';
 import { mountTableList, mountChecklist } from './list-kit.js';
 import {
@@ -11,8 +11,8 @@ import {
 const TP_RE = /^ท-ป\s*(\d+)-(\d+)\s*/;
 
 // ฟิลด์ค้นหาที่ขึ้นกับครู (ชื่อครูอยู่ใน state) สร้างใหม่ทุกครั้งที่เรนเดอร์ เพื่อให้ดัชนี cache ไม่ค้างชื่อครูเก่า
-const subjectFilters = [
-  { id: 'level', label: 'ระดับ', options: LEVELS.map((l) => [l, l]), test: (s, v) => (s.levels || []).includes(v) },
+const subjectFilters = () => [
+  { id: 'level', label: 'ระดับ', options: ctx.state.levels.map((l) => [l, l]), test: (s, v) => (s.levels || []).includes(v) },
   { id: 'type', label: 'ประเภท', options: SUBJECT_TYPES.map((t) => [t.id, t.name]), test: (s, v) => s.type === v },
 ];
 
@@ -29,7 +29,7 @@ export function renderSubjects(root) {
   const names = (s) => subjectTeacherIds(s).map((id) => byId(state.teachers, id)?.name ?? '').join(' ');
   mountTableList(root.querySelector('#list-root'), {
     name: 'subjects',
-    def: { fields: (s) => [s.code, s.name, names(s), (s.levels || []).join(' ')], filters: subjectFilters, sort: { key: (s) => s.code }, placeholder: 'ค้นหารหัส/ชื่อวิชา/ครู' },
+    def: { fields: (s) => [s.code, s.name, names(s), (s.levels || []).join(' ')], filters: subjectFilters(), sort: { key: (s) => s.code }, placeholder: 'ค้นหารหัส/ชื่อวิชา/ครู' },
     getItems: () => ctx.state.subjects,
     headHtml: `<tr><th>รหัสวิชา</th><th>ชื่อวิชา</th><th>ประเภท</th><th>ระดับที่เปิดสอน</th><th class="text-center">หน่วยกิต</th>
       <th class="text-center">ชม./สัปดาห์</th><th>ครูผู้สอน</th><th>หมายเหตุ</th><th class="text-center">คาบที่ลง</th>${editOnly('<th></th>')}</tr>`,
@@ -71,12 +71,13 @@ async function remove(subject) {
 }
 
 export function openForm(subject) {
+  if (!ctx.state.levels?.length) return toast('ยังไม่มีระดับ ไปเพิ่มที่เมนู "ระดับ" ก่อน', 'error');
   const { state } = ctx;
   const isEdit = Boolean(subject);
   const tp = subject ? TP_RE.exec(subject.note || '') : null;
   const theory = subject?.theory ?? (tp ? tp[1] : subject ? String(subject.hours) : '2');
   const practice = subject?.practice ?? (tp ? tp[2] : '0');
-  const levelChips = LEVELS.map(
+  const levelChips = state.levels.map(
     (l) => `<label class="chip"><input type="checkbox" name="levels" value="${esc(l)}"${(subject?.levels || []).includes(l) ? ' checked' : ''}><span>${esc(l)}</span></label>`,
   ).join('');
   const extraNote = subject ? (subject.note || '').replace(TP_RE, '') : '';
@@ -130,7 +131,7 @@ export function openForm(subject) {
     const whole = (n) => Number.isInteger(n) && n >= 0;
     if (!whole(t) || !whole(p) || t + p < 1) errs.push({ input: '#f-practice', msg: 'ชม./สัปดาห์ (ท+ป) ต้องเป็นจำนวนเต็มบวก' });
     if (!Number.isFinite(credits) || credits < 0) errs.push({ input: '#f-credits', msg: 'หน่วยกิตต้องไม่ติดลบ' });
-    const levels = LEVELS.filter((l) => [...m.el.querySelectorAll('input[name=levels]')].some((i) => i.value === l && i.checked));
+    const levels = ctx.state.levels.filter((l) => [...m.el.querySelectorAll('input[name=levels]')].some((i) => i.value === l && i.checked));
     if (!levels.length) errs.push({ input: '#f-levels', msg: 'กรุณาเลือกระดับที่เปิดสอนอย่างน้อย 1 ระดับ' });
     const picked = new Set(teacherPick.getSelected());
     const teacherIds = state.teachers.map((x) => x.id).filter((id) => picked.has(id));

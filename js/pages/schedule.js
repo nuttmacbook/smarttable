@@ -5,7 +5,7 @@
 import { checkPlacement, availableClassrooms, canMerge } from '../scheduler.js';
 import { uid } from '../store.js';
 import { dayName, periodLabel, subjectTypeName } from '../constants.js';
-import { groupPanelRows, STATUS_TEXT } from '../panel-model.js';
+import { groupPanelRows, STATUS_TEXT, cachedBlockedCells } from '../panel-model.js';
 import { mountMulti, clearMultiSelection, getMulti } from './multi-ui.js';
 import { mountListKit, searchSelect } from './list-kit.js';
 import {
@@ -87,9 +87,26 @@ export function renderSchedule(root) {
   if (ui.placingSubjectId && !outsideOk && (!placingRow || placingRow.remaining === 0)) ui.placingSubjectId = null;
   const placing = ui.placingSubjectId ? placingRow : null;
 
+  // ช่องที่ลงวิชาที่เลือกไม่ได้ (แดง+ลาย+⊘): คำนวณครั้งเดียวต่อการเปลี่ยนวิชา/ครู/ห้อง/กลุ่ม/ข้อมูล (cache ตาม state)
+  const blockedMap = () => {
+    const mm = getMulti();
+    if (!ui.placingSubjectId || moving || (mm.on && mm.kind === 'remove')) return null;
+    return cachedBlockedCells(state, { groupId: group.id, subjectId: ui.placingSubjectId, teacherId: mm.on ? mm.teacherId : '', roomId: mm.on ? mm.roomId : '' });
+  };
   const cell = (day, period) => {
     const e = groupEntries.find((x) => x.day === day && x.period === period);
-    if (!e) return { cls: 'is-free', html: '<span class="tt-cell-sub">ว่าง</span>', interactive: true };
+    if (!e) {
+      const b = blockedMap()?.get(`${day}:${period}`);
+      if (b) {
+        return {
+          cls: 'is-free is-blocked',
+          interactive: true,
+          title: `ลงไม่ได้: ${b.reason}`,
+          html: `<span class="tt-cell-blocked"><span class="tt-block-icon" aria-hidden="true">⊘</span> <span class="tt-block-text">ลงไม่ได้</span></span><span class="tt-cell-sub tt-block-reason">${esc(b.reason)}</span>`,
+        };
+      }
+      return { cls: 'is-free', html: '<span class="tt-cell-sub">ว่าง</span>', interactive: true };
+    }
     const subj = byId(state.subjects, e.subjectId);
     const classroom = byId(state.rooms, e.roomId);
     const check = checkPlacement(state, { groupId: group.id, day, period, subjectId: e.subjectId, roomId: e.roomId, teacherId: e.teacherId ?? undefined, ignoreEntryId: e.id });
@@ -144,7 +161,7 @@ export function renderSchedule(root) {
         ${moving ? `<div class="alert alert-info" role="status">กำลังย้ายวิชา <strong>${esc(byId(state.subjects, moving.subjectId)?.name ?? '')}</strong> — คลิกช่องว่างที่ต้องการ
           <button type="button" class="btn btn-sm" id="btn-cancel-move">ยกเลิกการย้าย</button></div>` : ''}
         ${state.subjects.length ? '' : '<div class="alert alert-warning">ยังไม่มีรายวิชา เพิ่มที่หน้า "รายวิชา" ก่อนจึงจะลงตารางได้</div>'}
-        ${legendHtml(['free', 'general', 'vocational', 'shared', 'warning', 'conflict', 'level', 'lunch'])}
+        ${legendHtml(['free', 'blocked', 'general', 'vocational', 'shared', 'warning', 'conflict', 'level', 'lunch'])}
         <div id="multi-box"></div>
         <div id="grid-box"></div>
       </div>

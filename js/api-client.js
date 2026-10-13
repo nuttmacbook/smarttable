@@ -19,9 +19,9 @@ const MESSAGES = {
   409: 'มีผู้แก้ไขพร้อมกัน โปรดตรวจสอบข้อมูลล่าสุดแล้วลองใหม่',
   413: 'ข้อมูลมีขนาดใหญ่เกินกำหนด',
   422: 'ข้อมูลไม่ผ่านการตรวจสอบ',
-  429: 'ลองบ่อยเกินไป โปรดรอสักครู่แล้วลองใหม่',
+  429: 'ลองบ่อยเกินไป โปรดรอสักครู่',
 };
-const messageFor = (status) => MESSAGES[status] ?? (status >= 500 ? 'เซิร์ฟเวอร์ขัดข้อง โปรดลองใหม่ภายหลัง' : `คำขอไม่สำเร็จ (${status})`);
+const messageFor = (status) => MESSAGES[status] ?? (status >= 500 ? 'ระบบขัดข้อง โปรดติดต่อผู้ดูแล' : `คำขอไม่สำเร็จ (${status})`);
 
 export function createApiClient({ fetchImpl = globalThis.fetch?.bind(globalThis), base = '' } = {}) {
   async function request(method, path, { body, query, shareToken, signal } = {}) {

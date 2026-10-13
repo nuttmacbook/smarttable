@@ -230,6 +230,11 @@ export function mountListKit(container, opts) {
   const persist = opts.persist !== false;
   const ns = String(++KIT_COUNT);
   const st = persist ? loadListState(name, filterIds) : emptyListState();
+  // ตัวกรองที่จำไว้แต่ไม่มีตัวเลือกนั้นแล้ว (เช่น ระดับถูกเปลี่ยนชื่อ/ลบ) → ทิ้ง ไม่งั้นรายการว่างและล้างตัวกรองไม่ได้
+  for (const f of def.filters ?? []) {
+    const v = st.filters.get(f.id);
+    if (v !== undefined && !f.options.some(([ov]) => ov === v)) st.filters.delete(f.id);
+  }
   let timer = null;
   let view = computeView(opts.getItems(), st, def);
   st.page = view.page;
